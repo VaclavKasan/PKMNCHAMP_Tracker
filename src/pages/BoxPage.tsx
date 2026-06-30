@@ -3,19 +3,39 @@ import { useBox } from '../hooks/useBox'
 import { Autocomplete } from '../components/Autocomplete'
 import { PokemonImage } from '../components/PokemonImage'
 import { searchPokemon, searchMoves, searchAbilities, searchItems, allPokemon, moveTypeMap, TYPE_COLORS } from '../utils/gameData'
-import { NATURES, getNature, natureModifier } from '../utils/natures'
-import { calcStat, STAT_KEYS, STAT_LABELS, STAT_COLORS, MAX_EV_TOTAL, MAX_EV_SINGLE } from '../utils/statCalc'
+import { NATURES, getNature } from '../utils/natures'
+import { calcStat, STAT_KEYS, STAT_COLORS, MAX_EV_TOTAL, MAX_EV_SINGLE } from '../utils/statCalc'
 import { itemSpriteUrl } from '../utils/sprites'
 import type { PokemonEntry, MoveEntry, BoxPokemon, StatSpread } from '../types'
+import type { StatKey } from '../utils/statCalc'
 import { IconPlus, IconEdit, IconTrash, IconCheck, IconX, IconLoader, IconChevronUp, IconChevronDown } from '@tabler/icons-react'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const BAR_REF = 250   // visual bar scale — most L50 stats fall well within this
+
+const ROW_LABELS: Record<StatKey, string> = {
+  hp: 'HP', atk: 'ATK', def: 'DEF', spa: 'SP. ATK', spd: 'SP. DEF', spe: 'SPD',
+}
+
+const LONG_LABELS: Record<string, string> = {
+  hp: 'HP', atk: 'Attack', def: 'Defense', spa: 'Sp. Atk', spd: 'Sp. Def', spe: 'Speed',
+}
+
+const STAT_DARK_COLORS: Record<StatKey, string> = {
+  hp:  '#15803d',
+  atk: '#be123c',
+  def: '#b45309',
+  spa: '#1d4ed8',
+  spd: '#6d28d9',
+  spe: '#be185d',
+}
 
 // ── Type badge ────────────────────────────────────────────────────────────────
 function TypeBadge({ type }: { type: string }) {
-  const bg = TYPE_COLORS[type] ?? '#888'
   return (
     <span
       className="inline-block text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: bg }}
+      style={{ backgroundColor: TYPE_COLORS[type] ?? '#888' }}
     >
       {type.toUpperCase()}
     </span>
@@ -25,146 +45,204 @@ function TypeBadge({ type }: { type: string }) {
 // ── Move type dot ─────────────────────────────────────────────────────────────
 function MoveDot({ moveName }: { moveName: string }) {
   const type = moveTypeMap.get(moveName.toLowerCase())
-  const bg   = type ? (TYPE_COLORS[type] ?? '#888') : '#d1d5db'
   return (
     <span
       className="inline-block w-3.5 h-3.5 rounded-full flex-shrink-0 mt-0.5"
-      style={{ backgroundColor: bg }}
+      style={{ backgroundColor: type ? (TYPE_COLORS[type] ?? '#888') : '#d1d5db' }}
       title={type}
     />
   )
 }
 
-// ── Stat bar ─────────────────────────────────────────────────────────────────
-const MAX_BAR_STAT = 255
-
-interface StatBarProps {
-  statKey:   typeof STAT_KEYS[number]
-  base:      number
-  training:  number
-  natSlug?:  string
-}
-
-function StatBar({ statKey, base, training, natSlug }: StatBarProps) {
-  const nature    = getNature(natSlug ?? '')
-  const modifier  = natureModifier(nature, statKey)
-  const final     = calcStat(base, statKey, training, natSlug)
-  const barFill   = Math.min(100, (final / MAX_BAR_STAT) * 100)
-  const color     = STAT_COLORS[statKey]
-
-  const isUp   = modifier > 1
-  const isDown = modifier < 1
+// ── Nature section ────────────────────────────────────────────────────────────
+function NatureSection({ natSlug, onChange }: { natSlug: string; onChange: (s: string) => void }) {
+  const nature   = getNature(natSlug)
+  const plusKey  = nature?.plus
+  const minusKey = nature?.minus
 
   return (
-    <div className="flex items-center gap-2 py-0.5">
-      {/* Stat label with nature indicator */}
-      <div className="w-14 flex items-center gap-0.5 flex-shrink-0">
-        {isUp   && <span className="text-[10px] font-bold text-blue-600">↑</span>}
-        {isDown && <span className="text-[10px] font-bold text-red-500">↓</span>}
-        <span className={`text-xs font-semibold ${isUp ? 'text-blue-600' : isDown ? 'text-red-500' : 'text-gray-600'}`}>
-          {STAT_LABELS[statKey]}
-        </span>
-      </div>
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-gray-700">Nature</p>
 
-      {/* Bar */}
-      <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${barFill}%`, backgroundColor: color }}
-        />
-      </div>
+      <select
+        value={natSlug}
+        onChange={e => onChange(e.target.value)}
+        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+      >
+        {NATURES.map(n => {
+          const eff = n.plus && n.minus
+            ? `  +${LONG_LABELS[n.plus] ?? n.plus} / −${LONG_LABELS[n.minus] ?? n.minus}`
+            : '  (neutral)'
+          return <option key={n.slug} value={n.slug}>{n.name}{eff}</option>
+        })}
+      </select>
 
-      {/* EV training indicator */}
-      <div className="w-8 text-right flex-shrink-0">
-        {training > 0 && (
-          <span className="text-[11px] font-bold text-amber-500">+{training}</span>
-        )}
-      </div>
-
-      {/* Final stat */}
-      <div className="w-8 text-right flex-shrink-0">
-        <span className="text-xs font-semibold text-gray-800">{final}</span>
-      </div>
+      {plusKey && minusKey && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-red-500 flex-shrink-0">+10%</span>
+          <div className="flex-1 border border-gray-200 rounded-xl px-3 py-2 bg-white text-sm text-gray-700 font-medium">
+            {LONG_LABELS[plusKey] ?? plusKey}
+          </div>
+          <span className="text-sm font-bold text-blue-600 flex-shrink-0">−10%</span>
+          <div className="flex-1 border border-gray-200 rounded-xl px-3 py-2 bg-white text-sm text-gray-700 font-medium">
+            {LONG_LABELS[minusKey] ?? minusKey}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-// ── EV Training editor ────────────────────────────────────────────────────────
-interface EvEditorProps {
-  evTraining: StatSpread
-  onChange: (ev: StatSpread) => void
-}
+// ── Stat + EV row (edit mode) ─────────────────────────────────────────────────
+function StatEvRow({
+  statKey, base, training, remaining, natSlug, onChange,
+}: {
+  statKey: StatKey; base: number; training: number
+  remaining: number; natSlug?: string; onChange: (v: number) => void
+}) {
+  const withoutEV  = calcStat(base, statKey, 0, natSlug)
+  const withEV     = calcStat(base, statKey, training, natSlug)
+  const evBonus    = withEV - withoutEV
+  const maxForStat = Math.min(MAX_EV_SINGLE, training + remaining)
+  const canDec     = training > 0
+  const canInc     = training < maxForStat
 
-function EvEditor({ evTraining, onChange }: EvEditorProps) {
-  const total     = STAT_KEYS.reduce((s, k) => s + (evTraining[k] ?? 0), 0)
-  const remaining = MAX_EV_TOTAL - total
+  const color     = STAT_COLORS[statKey]
+  const darkColor = STAT_DARK_COLORS[statKey]
+
+  const baseW = Math.min(100, (withoutEV / BAR_REF) * 100)
+  const evW   = Math.min(100 - baseW, (evBonus / BAR_REF) * 100)
+  const pct   = withoutEV > 0 && evBonus > 0
+    ? ((evBonus / withoutEV) * 100).toFixed(1)
+    : null
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-600">Training Points</span>
-        <span className={`text-xs font-semibold ${remaining === 0 ? 'text-red-500' : 'text-gray-500'}`}>
-          {total}/{MAX_EV_TOTAL} used · {remaining} left
-        </span>
+    <div>
+      <p className="text-[11px] font-bold text-gray-600 mb-1 tracking-wide">{ROW_LABELS[statKey]}</p>
+
+      <div className="flex items-center gap-1">
+        {/* Two-tone progress bar */}
+        <div className="relative flex-1 h-5 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0"
+            style={{ width: `${baseW}%`, backgroundColor: color }}
+          />
+          {evW > 0 && (
+            <div
+              className="absolute inset-y-0"
+              style={{ left: `${baseW}%`, width: `${evW}%`, backgroundColor: darkColor }}
+            />
+          )}
+        </div>
+
+        {/* × clear — hidden (but space-holding) when training = 0 */}
+        <button
+          type="button"
+          onClick={() => onChange(0)}
+          className={`w-7 h-7 rounded-full border flex items-center justify-center flex-shrink-0 text-sm font-bold transition-opacity ${
+            canDec
+              ? 'border-red-300 text-red-500 hover:bg-red-50'
+              : 'opacity-0 pointer-events-none border-transparent'
+          }`}
+        >×</button>
+
+        {/* − */}
+        <button
+          type="button"
+          onClick={() => canDec && onChange(training - 1)}
+          disabled={!canDec}
+          className="w-7 h-7 rounded border border-gray-200 flex items-center justify-center flex-shrink-0 text-gray-600 hover:bg-gray-100 disabled:opacity-30 text-base leading-none"
+        >−</button>
+
+        {/* Spinner input */}
+        <div className="flex items-stretch border border-gray-300 rounded overflow-hidden flex-shrink-0 h-7">
+          <span className="flex items-center justify-center px-2 text-sm font-medium text-gray-800 min-w-[30px]">
+            {training}
+          </span>
+          <div className="flex flex-col border-l border-gray-200">
+            <button
+              type="button"
+              onClick={() => canInc && onChange(training + 1)}
+              disabled={!canInc}
+              className="flex-1 px-1 hover:bg-gray-100 disabled:opacity-30 flex items-center justify-center"
+            >
+              <IconChevronUp size={9} />
+            </button>
+            <button
+              type="button"
+              onClick={() => canDec && onChange(training - 1)}
+              disabled={!canDec}
+              className="flex-1 px-1 hover:bg-gray-100 disabled:opacity-30 border-t border-gray-200 flex items-center justify-center"
+            >
+              <IconChevronDown size={9} />
+            </button>
+          </div>
+        </div>
+
+        {/* + */}
+        <button
+          type="button"
+          onClick={() => canInc && onChange(training + 1)}
+          disabled={!canInc}
+          className="w-7 h-7 rounded border border-gray-200 flex items-center justify-center flex-shrink-0 text-green-600 hover:bg-green-50 disabled:opacity-30 text-base leading-none"
+        >+</button>
+
+        {/* MAX */}
+        <button
+          type="button"
+          onClick={() => onChange(maxForStat)}
+          disabled={!canInc}
+          className="w-9 text-[11px] font-semibold text-gray-400 hover:text-gray-700 disabled:opacity-30 flex-shrink-0 text-right"
+        >MAX</button>
+
+        {/* Lvl 50 stat */}
+        <div className="w-9 text-right flex-shrink-0">
+          <span className="text-sm font-bold text-gray-900">{withEV}</span>
+        </div>
       </div>
 
-      {STAT_KEYS.map(key => {
-        const val        = evTraining[key] ?? 0
-        const maxForStat = Math.min(MAX_EV_SINGLE, val + remaining)
-        const canDec     = val > 0
-        const atMax      = val >= maxForStat
+      {/* EV bonus hint */}
+      {evBonus > 0 && pct && (
+        <p className="text-[11px] mt-0.5 pl-1" style={{ color: darkColor }}>
+          +{evBonus}&ensp;{pct}%
+        </p>
+      )}
+    </div>
+  )
+}
 
-        return (
-          <div key={key} className="flex items-center gap-2">
-            {/* Stat label */}
-            <span className="text-xs font-semibold text-gray-600 w-9 flex-shrink-0">{STAT_LABELS[key]}</span>
+// ── Stat display row (view mode) ──────────────────────────────────────────────
+function StatDisplayRow({ statKey, base, training, natSlug }: {
+  statKey: StatKey; base: number; training: number; natSlug?: string
+}) {
+  const withoutEV = calcStat(base, statKey, 0, natSlug)
+  const withEV    = calcStat(base, statKey, training, natSlug)
+  const evBonus   = withEV - withoutEV
 
-            {/* − button */}
-            <button
-              type="button"
-              onClick={() => canDec && onChange({ ...evTraining, [key]: val - 1 })}
-              disabled={!canDec}
-              className="w-6 h-6 rounded border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-base flex items-center justify-center flex-shrink-0 leading-none"
-            >−</button>
+  const color     = STAT_COLORS[statKey]
+  const darkColor = STAT_DARK_COLORS[statKey]
 
-            {/* Value */}
-            <span className="w-8 text-center text-sm font-bold text-amber-500 flex-shrink-0">
-              {val > 0 ? `+${val}` : '0'}
-            </span>
+  const baseW = Math.min(100, (withoutEV / BAR_REF) * 100)
+  const evW   = Math.min(100 - baseW, (evBonus / BAR_REF) * 100)
+  const pct   = withoutEV > 0 && evBonus > 0
+    ? ((evBonus / withoutEV) * 100).toFixed(1)
+    : null
 
-            {/* + button */}
-            <button
-              type="button"
-              onClick={() => !atMax && onChange({ ...evTraining, [key]: val + 1 })}
-              disabled={atMax}
-              className="w-6 h-6 rounded border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-base flex items-center justify-center flex-shrink-0 leading-none"
-            >+</button>
-
-            {/* Slider — max dynamically capped so you can't exceed total budget */}
-            <input
-              type="range"
-              min={0}
-              max={Math.max(1, maxForStat)}
-              value={val}
-              onChange={e => onChange({ ...evTraining, [key]: Math.min(parseInt(e.target.value, 10), maxForStat) })}
-              disabled={maxForStat === 0 && val === 0}
-              className="flex-1 h-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ accentColor: '#f59e0b' }}
-            />
-
-            {/* Max button */}
-            <button
-              type="button"
-              onClick={() => onChange({ ...evTraining, [key]: maxForStat })}
-              disabled={atMax || maxForStat === 0}
-              className="text-[11px] font-semibold text-amber-500 hover:text-amber-700 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0 w-7 text-right"
-            >Max</button>
-
-            {/* X/32 label */}
-            <span className="text-xs text-gray-400 w-8 text-right flex-shrink-0">{val}/{MAX_EV_SINGLE}</span>
-          </div>
-        )
-      })}
+  return (
+    <div>
+      <p className="text-[10px] font-bold text-gray-500 mb-0.5 tracking-wide">{ROW_LABELS[statKey]}</p>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 h-3.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="absolute inset-y-0 left-0" style={{ width: `${baseW}%`, backgroundColor: color }} />
+          {evW > 0 && (
+            <div className="absolute inset-y-0" style={{ left: `${baseW}%`, width: `${evW}%`, backgroundColor: darkColor }} />
+          )}
+        </div>
+        <span className="text-xs font-bold text-gray-900 w-8 text-right flex-shrink-0">{withEV}</span>
+      </div>
+      {evBonus > 0 && pct && (
+        <p className="text-[10px] mt-0.5" style={{ color: darkColor }}>+{evBonus}&ensp;{pct}%</p>
+      )}
     </div>
   )
 }
@@ -179,18 +257,15 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
   onDeleteCancel: () => void
 }) {
   const [showStats, setShowStats] = useState(true)
-  const pokeData = allPokemon.find(p => p.slug === poke.slug)
+  const pokeData  = allPokemon.find(p => p.slug === poke.slug)
   const baseStats = pokeData?.baseStats
-  const types = poke.types ?? pokeData?.types
-
-  // Find item slug from item name for sprite
-  const itemSlug = poke.item
-    ? poke.item.toLowerCase().replace(/[^a-z0-9]+/g, '')
-    : null
+  const types     = poke.types ?? pokeData?.types
+  const itemSlug  = poke.item ? poke.item.toLowerCase().replace(/[^a-z0-9]+/g, '') : null
+  const nature    = getNature(poke.nature ?? '')
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      {/* Header: name + type badges */}
+      {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <div className="flex items-start justify-between">
           <h3 className="text-lg font-bold text-gray-900 leading-tight">{poke.name}</h3>
@@ -205,7 +280,7 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
         <PokemonImage national={poke.national} slug={poke.slug} isForm={poke.isForm} name={poke.name} size="lg" />
       </div>
 
-      {/* Item + Ability */}
+      {/* Item + Ability + Nature */}
       <div className="px-4 pb-2 flex flex-col items-center gap-1">
         {poke.item ? (
           <div className="flex items-center gap-1.5 bg-gray-50 rounded-full px-3 py-1">
@@ -218,15 +293,17 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
             <span className="text-xs font-medium text-gray-700 max-w-[140px] truncate">{poke.item}</span>
           </div>
         ) : null}
-        {poke.ability && (
-          <span className="text-sm text-gray-500">{poke.ability}</span>
-        )}
-        {poke.nature && (
-          <span className="text-xs text-indigo-600 font-medium">{getNature(poke.nature)?.name ?? poke.nature} nature</span>
+        {poke.ability && <span className="text-sm text-gray-500">{poke.ability}</span>}
+        {nature && (
+          <span className="text-xs font-medium text-indigo-600">
+            {nature.name}
+            {nature.plus && nature.minus
+              ? ` (+${LONG_LABELS[nature.plus] ?? nature.plus} / −${LONG_LABELS[nature.minus] ?? nature.minus})`
+              : ''}
+          </span>
         )}
       </div>
 
-      {/* Divider */}
       <div className="border-t border-gray-100 mx-4" />
 
       {/* Moves */}
@@ -242,7 +319,7 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
         )}
       </div>
 
-      {/* Stats section */}
+      {/* Stats */}
       {baseStats && (
         <>
           <div className="border-t border-gray-100 mx-4" />
@@ -254,15 +331,19 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
               {showStats ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
               Stats
             </button>
-            {showStats && STAT_KEYS.map(key => (
-              <StatBar
-                key={key}
-                statKey={key}
-                base={baseStats[key]}
-                training={poke.evTraining?.[key] ?? 0}
-                natSlug={poke.nature}
-              />
-            ))}
+            {showStats && (
+              <div className="space-y-2">
+                {STAT_KEYS.map(key => (
+                  <StatDisplayRow
+                    key={key}
+                    statKey={key}
+                    base={baseStats[key]}
+                    training={poke.evTraining?.[key] ?? 0}
+                    natSlug={poke.nature}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -301,19 +382,19 @@ function PokeCard({ poke, onEdit, onDelete, isDeleteConfirm, onDeleteRequest, on
 
 // ── Add / Edit form ───────────────────────────────────────────────────────────
 interface PokemonForm {
-  slug:      string
-  name:      string
-  national:  number | null
-  isForm:    boolean
-  types:     string[]
-  moves:     [string, string, string, string]
-  ability:   string
-  item:      string
-  nature:    string
+  slug:       string
+  name:       string
+  national:   number | null
+  isForm:     boolean
+  types:      string[]
+  moves:      [string, string, string, string]
+  ability:    string
+  item:       string
+  nature:     string
   evTraining: StatSpread
 }
 
-const emptyEv = (): StatSpread => ({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })
+const emptyEv   = (): StatSpread => ({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })
 const emptyForm = (): PokemonForm => ({
   slug: '', name: '', national: null, isForm: false, types: [],
   moves: ['', '', '', ''],
@@ -325,16 +406,12 @@ const emptyForm = (): PokemonForm => ({
 interface MoveQueryState { q: string; suggestions: MoveEntry[] }
 
 function EditForm({
-  initial,
-  isEdit,
-  saving,
-  onSave,
-  onCancel,
+  initial, isEdit, saving, onSave, onCancel,
 }: {
-  initial: PokemonForm
-  isEdit:  boolean
-  saving:  boolean
-  onSave:  (f: PokemonForm) => void
+  initial:  PokemonForm
+  isEdit:   boolean
+  saving:   boolean
+  onSave:   (f: PokemonForm) => void
   onCancel: () => void
 }) {
   const [form, setForm] = useState<PokemonForm>(initial)
@@ -343,13 +420,19 @@ function EditForm({
   const [moveQueries, setMoveQueries] = useState<MoveQueryState[]>(
     initial.moves.map(q => ({ q, suggestions: [] }))
   )
-  const [abilityQuery, setAbilityQuery]   = useState(initial.ability)
+  const [abilityQuery, setAbilityQuery] = useState(initial.ability)
   const [abilitySuggestions, setAbilitySuggestions] = useState<ReturnType<typeof searchAbilities>>([])
-  const [itemQuery, setItemQuery]         = useState(initial.item)
-  const [itemSuggestions, setItemSuggestions]     = useState<ReturnType<typeof searchItems>>([])
+  const [itemQuery, setItemQuery] = useState(initial.item)
+  const [itemSuggestions, setItemSuggestions] = useState<ReturnType<typeof searchItems>>([])
 
-  const pokeData = form.slug ? allPokemon.find(p => p.slug === form.slug) : null
+  const pokeData  = form.slug ? allPokemon.find(p => p.slug === form.slug) : null
   const baseStats = pokeData?.baseStats
+
+  const evTotal     = STAT_KEYS.reduce((s, k) => s + (form.evTraining[k] ?? 0), 0)
+  const evRemaining = MAX_EV_TOTAL - evTotal
+  const lvl50Total  = baseStats
+    ? STAT_KEYS.reduce((s, k) => s + calcStat(baseStats[k], k, form.evTraining[k] ?? 0, form.nature), 0)
+    : 0
 
   function handlePokemonSelect(entry: PokemonEntry) {
     setPokemonQuery(entry.name)
@@ -371,6 +454,10 @@ function EditForm({
     })
   }
 
+  function setEv(key: StatKey, v: number) {
+    setForm(f => ({ ...f, evTraining: { ...f.evTraining, [key]: v } }))
+  }
+
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-4">
       <h3 className="font-semibold text-gray-900">{isEdit ? 'Edit Pokémon' : 'Add Pokémon'}</h3>
@@ -388,15 +475,13 @@ function EditForm({
         />
       </div>
 
-      {/* Preview */}
+      {/* Sprite preview */}
       {form.slug && (
         <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
           <PokemonImage national={form.national} slug={form.slug} isForm={form.isForm} name={form.name} size="md" />
           <div>
             <p className="font-semibold text-gray-900">{form.name}</p>
-            <div className="flex gap-1 mt-0.5">
-              {form.types.map(t => <TypeBadge key={t} type={t} />)}
-            </div>
+            <div className="flex gap-1 mt-0.5">{form.types.map(t => <TypeBadge key={t} type={t} />)}</div>
           </div>
         </div>
       )}
@@ -452,45 +537,43 @@ function EditForm({
         />
       </div>
 
-      {/* Nature */}
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Nature</label>
-        <select
-          value={form.nature}
-          onChange={e => setForm(f => ({ ...f, nature: e.target.value }))}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          {NATURES.map(n => {
-            const mod = n.plus && n.minus
-              ? ` (+${n.plus.toUpperCase()} / −${n.minus.toUpperCase()})`
-              : ''
-            return <option key={n.slug} value={n.slug}>{n.name}{mod}</option>
-          })}
-        </select>
-      </div>
-
-      {/* EV Training — only when we have base stats */}
+      {/* Nature + Stats + EVs */}
       {baseStats && (
-        <div className="border border-amber-100 rounded-xl p-3 bg-amber-50/50">
-          <p className="text-xs font-semibold text-amber-700 mb-3">EV Training</p>
-          <EvEditor evTraining={form.evTraining} onChange={ev => setForm(f => ({ ...f, evTraining: ev }))} />
+        <div>
+          <NatureSection
+            natSlug={form.nature}
+            onChange={nat => setForm(f => ({ ...f, nature: nat }))}
+          />
 
-          {/* Live stat preview */}
-          <div className="mt-4 border-t border-amber-100 pt-3 space-y-0.5">
+          <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
             {STAT_KEYS.map(key => (
-              <StatBar
+              <StatEvRow
                 key={key}
                 statKey={key}
                 base={baseStats[key]}
-                training={form.evTraining[key]}
+                training={form.evTraining[key] ?? 0}
+                remaining={evRemaining}
                 natSlug={form.nature}
+                onChange={v => setEv(key, v)}
               />
             ))}
+          </div>
+
+          {/* Footer totals */}
+          <div className="flex items-start justify-between pt-4 mt-1 border-t border-gray-100">
+            <div>
+              <p className="text-sm font-bold text-gray-900">{evTotal}/{MAX_EV_TOTAL} used</p>
+              <p className="text-xs text-gray-500">Stat Points</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-900">{lvl50Total}</p>
+              <p className="text-xs text-gray-500">Lvl 50 Total</p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Actions */}
+      {/* Save / Cancel */}
       <div className="flex gap-2">
         <button
           onClick={() => onSave(form)}
@@ -514,15 +597,13 @@ function EditForm({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function BoxPage() {
   const { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon } = useBox()
-  const [showForm, setShowForm] = useState(false)
-  const [editId, setEditId] = useState<string | null>(null)
+  const [showForm, setShowForm]       = useState(false)
+  const [editId, setEditId]           = useState<string | null>(null)
   const [initialForm, setInitialForm] = useState<PokemonForm>(emptyForm)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   function openAddForm() {
-    setEditId(null)
-    setInitialForm(emptyForm())
-    setShowForm(true)
+    setEditId(null); setInitialForm(emptyForm()); setShowForm(true)
   }
 
   function openEditForm(poke: BoxPokemon) {
@@ -541,22 +622,17 @@ export function BoxPage() {
   }
 
   async function handleSave(form: PokemonForm) {
-    const moves = form.moves.filter(m => m.trim())
     const data = {
       slug: form.slug, name: form.name,
       national: form.national, isForm: form.isForm,
       types: form.types,
-      moves, ability: form.ability, item: form.item,
-      nature: form.nature,
-      evTraining: form.evTraining,
+      moves: form.moves.filter(m => m.trim()),
+      ability: form.ability, item: form.item,
+      nature: form.nature, evTraining: form.evTraining,
     }
-    if (editId) {
-      await updatePokemon(editId, data)
-    } else {
-      await addPokemon(data)
-    }
-    setShowForm(false)
-    setEditId(null)
+    if (editId) await updatePokemon(editId, data)
+    else        await addPokemon(data)
+    setShowForm(false); setEditId(null)
   }
 
   if (loading) return (
@@ -567,7 +643,6 @@ export function BoxPage() {
 
   return (
     <div className="p-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-gray-900">My Box</h2>
         <div className="flex items-center gap-2">
@@ -587,7 +662,6 @@ export function BoxPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Add/Edit form */}
       {showForm && (
         <div className="mb-4">
           <EditForm
@@ -600,7 +674,6 @@ export function BoxPage() {
         </div>
       )}
 
-      {/* Box grid */}
       {box.length === 0 && !showForm ? (
         <div className="text-center py-16">
           <div className="text-5xl mb-4">🎒</div>
