@@ -36,24 +36,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    let cancelled = false
+
     function initClient() {
-      tokenClientRef.current = google.accounts.oauth2.initTokenClient({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        scope: SCOPES,
-        callback: handleTokenResponse,
-        error_callback: (err) => {
-          setState(s => ({ ...s, loading: false, error: `Sign-in failed: ${err.type}` }))
-          refreshPromiseRef.current = null
-        },
-      })
-      tokenClientRef.current.requestAccessToken({ prompt: '' })
+      if (cancelled) return
+      try {
+        tokenClientRef.current = google.accounts.oauth2.initTokenClient({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          scope: SCOPES,
+          callback: handleTokenResponse,
+          error_callback: (err) => {
+            setState(s => ({ ...s, loading: false, error: `Sign-in failed: ${err.type}` }))
+            refreshPromiseRef.current = null
+          },
+        })
+        tokenClientRef.current.requestAccessToken({ prompt: '' })
+      } catch {
+        setState(s => ({ ...s, loading: false }))
+      }
     }
+
+    // If neither callback fires in 5s (e.g. popup suppressed, script blocked),
+    // stop spinning so the sign-in button is reachable.
+    const timeout = setTimeout(() => {
+      setState(s => s.loading ? { ...s, loading: false } : s)
+    }, 5000)
 
     if (typeof google !== 'undefined') {
       initClient()
     } else {
       const script = document.querySelector('script[src*="accounts.google.com/gsi/client"]')
-      script?.addEventListener('load', initClient)
+      if (script) {
+        script.addEventListener('load', initClient)
+        script.addEventListener('error', () => setState(s => ({ ...s, loading: false })))
+      } else {
+        setState(s => ({ ...s, loading: false }))
+      }
+    }
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
