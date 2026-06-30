@@ -8,6 +8,8 @@ const SCOPES = [
   'https://www.googleapis.com/auth/drive.appdata',
 ].join(' ')
 
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
+
 interface AuthContextValue extends AuthState {
   signIn:        () => void
   signOut:       () => void
@@ -38,26 +40,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
 
+    if (!CLIENT_ID) {
+      setState(s => ({
+        ...s, loading: false,
+        error: 'App not configured: VITE_GOOGLE_CLIENT_ID is missing. Set it as a GitHub repository secret.',
+      }))
+      return
+    }
+
     function initClient() {
       if (cancelled) return
       try {
         tokenClientRef.current = google.accounts.oauth2.initTokenClient({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          client_id: CLIENT_ID!,
           scope: SCOPES,
           callback: handleTokenResponse,
           error_callback: (err) => {
-            setState(s => ({ ...s, loading: false, error: `Sign-in failed: ${err.type}` }))
+            // suppressed_by_user = silent auto-login attempt blocked → show button, no error text
+            if (err.type === 'suppressed_by_user') {
+              setState(s => ({ ...s, loading: false, error: null }))
+            } else {
+              setState(s => ({
+                ...s, loading: false,
+                error: friendlyError(err.type),
+              }))
+            }
             refreshPromiseRef.current = null
           },
         })
         tokenClientRef.current.requestAccessToken({ prompt: '' })
-      } catch {
-        setState(s => ({ ...s, loading: false }))
+      } catch (e) {
+        console.error('GIS initTokenClient failed:', e)
+        setState(s => ({ ...s, loading: false, error: 'Google sign-in failed to initialize. See browser console.' }))
       }
     }
 
-    // If neither callback fires in 5s (e.g. popup suppressed, script blocked),
-    // stop spinning so the sign-in button is reachable.
+    // Fallback: if no callback fires in 5s, stop spinning so the button stays reachable.
     const timeout = setTimeout(() => {
       setState(s => s.loading ? { ...s, loading: false } : s)
     }, 5000)
@@ -68,9 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const script = document.querySelector('script[src*="accounts.google.com/gsi/client"]')
       if (script) {
         script.addEventListener('load', initClient)
-        script.addEventListener('error', () => setState(s => ({ ...s, loading: false })))
+        script.addEventListener('error', () => {
+          setState(s => ({ ...s, loading: false, error: 'Could not load Google sign-in. Check your internet connection.' }))
+        })
       } else {
-        setState(s => ({ ...s, loading: false }))
+        setState(s => ({ ...s, loading: false, error: 'Google sign-in script not found.' }))
       }
     }
 
@@ -81,8 +101,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function signIn() {
+    if (!tokenClientRef.current) {
+      setState(s => ({
+        ...s,
+        error: !CLIENT_ID
+          ? 'App not configured: VITE_GOOGLE_CLIENT_ID is missing.'
+          : 'Sign-in is not ready yet. Please refresh the page.',
+      }))
+      return
+    }
     setState(s => ({ ...s, loading: true, error: null }))
-    tokenClientRef.current?.requestAccessToken({ prompt: 'select_account' })
+    try {
+      tokenClientRef.current.requestAccessToken({ prompt: 'select_account' })
+    } catch {
+      setState(s => ({
+        ...s, loading: false,
+        error: 'Could not open sign-in popup. Allow popups for this site and try again.',
+      }))
+    }
   }
 
   function signOut() {
@@ -99,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const orig = tokenClientRef.current
         if (!orig) { resolve(null); return }
         tokenClientRef.current = google.accounts.oauth2.initTokenClient({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          client_id: CLIENT_ID!,
           scope: SCOPES,
           callback: (resp) => {
             handleTokenResponse(resp)
@@ -132,4 +168,20 @@ async function fetchUserInfo(token: string): Promise<GoogleUser> {
   })
   const data = await res.json()
   return { id: data.sub, name: data.name, email: data.email, picture: data.picture }
+}
+
+function friendlyError(type: string): string {
+  switch (type) {
+    case 'popup_blocked':
+      return 'Sign-in popup was blocked. Please allow popups for this site and try again.'
+    case 'popup_closed_by_user':
+      return 'Sign-in was cancelled.'
+    case 'access_denied':
+      return 'Access was denied. Please try signing in again.'
+    case 'immediate_failed':
+    case 'unknown':
+      return 'Sign-in failed. If this site is not in your Google OAuth allowed origins, add it in Google Cloud Console.'
+    default:
+      return `Sign-in failed (${type}). If this keeps happening, check Google Cloud Console authorized origins.`
+  }
 }
