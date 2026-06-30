@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"vite --host\")",
+      "Bash(VITE_GOOGLE_CLIENT_ID=placeholder.apps.googleusercontent.com npm run build)",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e \"import\\('esbuild'\\).then\\(m => console.log\\('ok', Object.keys\\(m\\).slice\\(0,3\\)\\)\\).catch\\(e => console.log\\('MISSING:', e.message\\)\\)\")",
+      "Bash(git rm *)",
+      "Bash(rm -rf .git/modules/vendor/pokemondb)"
+    ]
+  }
+}

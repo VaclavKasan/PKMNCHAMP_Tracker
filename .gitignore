@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env.local
+src/data/pokemon.json
+src/data/moves.json
+src/data/types.json
+src/data/abilities.json
+src/data/items.json
+src/data/megas.json
+src/data/natures.json
