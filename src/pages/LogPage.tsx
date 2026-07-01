@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useBox } from '../hooks/useBox'
 import { useMatches } from '../hooks/useMatches'
 import { Autocomplete } from '../components/Autocomplete'
@@ -23,6 +23,7 @@ interface MyTeamSelection {
   movesUsed:      string[]
   survived:       boolean
   isMega:         boolean
+  kills:          number
 }
 
 interface EnemySlotForm {
@@ -52,17 +53,66 @@ function newEnemySlot(): EnemySlotForm {
   }
 }
 
+function nowTime() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+}
+
+// ── 24-hour time input ────────────────────────────────────────────────────────
+function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [raw, setRaw] = useState(value)
+  useEffect(() => setRaw(value), [value])
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+    const formatted = digits.length > 2 ? digits.slice(0, 2) + ':' + digits.slice(2) : digits
+    setRaw(formatted)
+    if (formatted.length === 5) {
+      const [hh, mm] = formatted.split(':').map(Number)
+      if (hh <= 23 && mm <= 59) onChange(formatted)
+    }
+  }
+
+  function handleBlur() {
+    // Snap to valid HH:MM
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length >= 3) {
+      const hh = Math.min(23, parseInt(digits.slice(0, 2), 10))
+      const mm = Math.min(59, parseInt(digits.slice(2, 4), 10))
+      const v = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+      setRaw(v); onChange(v)
+    } else if (digits.length >= 1) {
+      const hh = Math.min(23, parseInt(digits, 10))
+      const v = `${String(hh).padStart(2, '0')}:00`
+      setRaw(v); onChange(v)
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      value={raw}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      placeholder="HH:MM"
+      inputMode="numeric"
+      maxLength={5}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  )
+}
+
 export function LogPage() {
   const navigate = useNavigate()
+  const { matchId } = useParams<{ matchId?: string }>()
+  const isEdit = !!matchId
+
   const { box, loading: boxLoading } = useBox()
-  const { matches, addMatch, saving } = useMatches()
+  const { matches, loading: matchesLoading, addMatch, updateMatch, saving } = useMatches()
 
   // ── Match meta ────────────────────────────────────────────────────────────
   const [matchDate, setMatchDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [matchTime, setMatchTime] = useState(() => {
-    const now = new Date()
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  })
+  const [matchTime, setMatchTime] = useState(nowTime)
   const [regulation, setRegulation] = useState(DEFAULT_REGULATION)
   const [starred, setStarred] = useState(false)
 
@@ -89,6 +139,48 @@ export function LogPage() {
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── Edit mode: pre-fill from existing match ───────────────────────────────
+  const initDone = useRef(false)
+  useEffect(() => {
+    if (!isEdit || initDone.current || matchesLoading || boxLoading) return
+    const m = matches.find(m => m.id === matchId)
+    if (!m) return
+    initDone.current = true
+    setMatchDate(m.matchDate ?? m.date.split('T')[0])
+    setMatchTime(m.matchTime ?? nowTime())
+    setRegulation(m.regulation ?? DEFAULT_REGULATION)
+    setStarred(m.starred ?? false)
+    setResult(m.result)
+    setNotes(m.notes)
+    setStratQuery(m.enemyStrategy)
+    setMyTeam(m.myTeam.map(slot => {
+      const boxPoke = box.find(p => p.id === slot.boxId)
+      return {
+        boxId: slot.boxId, slug: slot.slug, name: slot.name,
+        national: slot.national, isForm: slot.isForm,
+        availableMoves: boxPoke?.moves ?? [],
+        movesUsed: slot.movesUsed,
+        survived: slot.survived ?? true,
+        isMega: slot.isMega ?? false,
+        kills: slot.kills ?? 0,
+      }
+    }))
+    const filledSlots: EnemySlotForm[] = m.enemyTeam.map(e => ({
+      ...newEnemySlot(),
+      nameQuery: e.name, name: e.name, slug: e.slug,
+      national: e.national, isForm: e.isForm,
+      ability: e.ability ?? '',
+      item: e.item ?? '',
+      moveQueries: [
+        e.movesUsed[0] ?? '', e.movesUsed[1] ?? '',
+        e.movesUsed[2] ?? '', e.movesUsed[3] ?? '',
+      ] as [string, string, string, string],
+      survived: e.survived ?? false,
+    }))
+    while (filledSlots.length < 4) filledSlots.push(newEnemySlot())
+    setEnemySlots(filledSlots.slice(0, 4))
+  }, [isEdit, matchId, matches, matchesLoading, box, boxLoading])
+
   // ── My team logic ─────────────────────────────────────────────────────────
   const megaUsedBy = myTeam.find(s => s.isMega)?.boxId ?? null
 
@@ -102,7 +194,7 @@ export function LogPage() {
         boxId: poke.id, slug: poke.slug, name: poke.name,
         national: poke.national, isForm: poke.isForm,
         availableMoves: poke.moves,
-        movesUsed: [], survived: true, isMega: false,
+        movesUsed: [], survived: true, isMega: false, kills: 0,
       }])
     }
   }
@@ -127,6 +219,10 @@ export function LogPage() {
       if (megaUsedBy && megaUsedBy !== boxId) return s
       return { ...s, isMega: true }
     }))
+  }
+
+  function setKills(boxId: string, kills: number) {
+    setMyTeam(t => t.map(s => s.boxId !== boxId ? s : { ...s, kills: Math.max(0, kills) }))
   }
 
   // ── Enemy team logic ──────────────────────────────────────────────────────
@@ -189,6 +285,7 @@ export function LogPage() {
         movesUsed: s.movesUsed,
         survived: s.survived,
         isMega: s.isMega,
+        kills: s.kills,
       }))
       const enemyTeam: EnemySlot[] = enemySlots
         .filter(s => s.name.trim())
@@ -200,19 +297,24 @@ export function LogPage() {
           ability: s.ability.trim() || 'Not known',
           item: s.item.trim() || 'Not known',
         }))
-      await addMatch({
+      const payload = {
         matchDate, matchTime, regulation, starred,
         myTeam: myTeamSlots, enemyTeam,
         enemyStrategy: stratQuery.trim(),
         result: result!, notes,
-      })
+      }
+      if (isEdit) {
+        await updateMatch(matchId!, payload)
+      } else {
+        await addMatch(payload)
+      }
       navigate('/history')
     } catch (err) {
       setSaveError((err as Error).message)
     }
   }
 
-  if (boxLoading) return (
+  if (boxLoading || (isEdit && matchesLoading)) return (
     <div className="flex items-center justify-center py-20">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -225,19 +327,19 @@ export function LogPage() {
 
       {/* ── Match meta ────────────────────────────────────── */}
       <section className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+        {isEdit && (
+          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+            <span className="text-sm font-semibold text-blue-700">Editing match</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
             <DatePicker value={matchDate} onChange={setMatchDate} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Time</label>
-            <input
-              type="time"
-              value={matchTime}
-              onChange={e => setMatchTime(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-xs font-medium text-gray-500 mb-1">Time (24h)</label>
+            <TimeInput value={matchTime} onChange={setMatchTime} />
           </div>
         </div>
         <div>
@@ -277,7 +379,6 @@ export function LogPage() {
                     <button
                       onClick={() => toggleMyMon(sel.boxId)}
                       className="text-gray-300 hover:text-red-400 flex-shrink-0"
-                      title="Deselect"
                     >
                       <IconX size={13} />
                     </button>
@@ -310,6 +411,23 @@ export function LogPage() {
                         ⚡ Mega{sel.isMega ? ' ✓' : ''}
                       </button>
                     )}
+                  </div>
+
+                  {/* Kill counter */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">Kills</span>
+                    <button
+                      onClick={() => setKills(sel.boxId, sel.kills - 1)}
+                      disabled={sel.kills === 0}
+                      className="w-5 h-5 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500 disabled:opacity-30 text-xs leading-none"
+                    >−</button>
+                    <span className={`text-xs font-bold w-4 text-center ${sel.kills > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
+                      {sel.kills}
+                    </span>
+                    <button
+                      onClick={() => setKills(sel.boxId, sel.kills + 1)}
+                      className="w-5 h-5 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-green-300 hover:text-green-600 text-xs leading-none"
+                    >+</button>
                   </div>
 
                   {/* Move checklist */}
@@ -374,23 +492,17 @@ export function LogPage() {
         <div className="grid grid-cols-2 gap-2">
           {enemySlots.map((slot, idx) => (
             <div key={slot.id} className="bg-white border border-gray-200 rounded-xl p-2 space-y-1.5">
-              {/* Card header */}
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                   Enemy {idx + 1}
                 </span>
                 {slot.name && (
-                  <button
-                    onClick={() => clearEnemySlot(slot.id)}
-                    className="text-gray-300 hover:text-red-400"
-                    title="Clear slot"
-                  >
+                  <button onClick={() => clearEnemySlot(slot.id)} className="text-gray-300 hover:text-red-400">
                     <IconX size={12} />
                   </button>
                 )}
               </div>
 
-              {/* Pokemon search */}
               <Autocomplete
                 mode="pokemon"
                 value={slot.nameQuery}
@@ -400,7 +512,6 @@ export function LogPage() {
                 placeholder="Pokémon…"
               />
 
-              {/* Matched: sprite + name + survived */}
               {slot.slug && (
                 <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-1.5 py-1">
                   <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
@@ -418,7 +529,6 @@ export function LogPage() {
                 </div>
               )}
 
-              {/* Ability */}
               <input
                 type="text"
                 value={slot.ability}
@@ -427,7 +537,6 @@ export function LogPage() {
                 className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
               />
 
-              {/* Item */}
               <input
                 type="text"
                 value={slot.item}
@@ -436,7 +545,6 @@ export function LogPage() {
                 className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
               />
 
-              {/* Moves 2×2 */}
               <div className="grid grid-cols-2 gap-1">
                 {[0, 1, 2, 3].map(i => (
                   <Autocomplete
@@ -547,8 +655,17 @@ export function LogPage() {
           className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? <IconLoader size={18} className="animate-spin" /> : <IconCheck size={18} />}
-          {saving ? 'Saving…' : 'Save match'}
+          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save match'}
         </button>
+
+        {isEdit && (
+          <button
+            onClick={() => navigate('/history')}
+            className="w-full mt-2 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        )}
       </section>
     </div>
   )

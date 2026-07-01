@@ -16,7 +16,8 @@ export default function App() {
             <Routes>
               <Route path="/"        element={<Navigate to="/box" replace />} />
               <Route path="/box"     element={<BoxPage />} />
-              <Route path="/log"     element={<LogPage />} />
+              <Route path="/log"              element={<LogPage />} />
+              <Route path="/log/edit/:matchId" element={<LogPage />} />
               <Route path="/stats"   element={<StatsPage />} />
               <Route path="/history" element={<HistoryPage />} />
             </Routes>

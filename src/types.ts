@@ -54,6 +54,7 @@ export interface MatchTeamSlot {
   movesUsed: string[]
   survived?: boolean
   isMega?:   boolean
+  kills?:    number
 }
 
 export interface EnemySlot {

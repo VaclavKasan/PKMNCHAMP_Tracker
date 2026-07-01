@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMatches } from '../hooks/useMatches'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
-import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled, IconEdit } from '@tabler/icons-react'
 import type { Match } from '../types'
 
 type ResultFilter = 'all' | 'win' | 'loss'
@@ -22,6 +23,7 @@ function toDisplay(iso: string) {
 }
 
 export function HistoryPage() {
+  const navigate = useNavigate()
   const { matches, loading, saving, deleteMatch, toggleStar } = useMatches()
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
@@ -209,6 +211,7 @@ export function HistoryPage() {
               onDeleteConfirm={() => handleDelete(match.id)}
               onDeleteCancel={() => setDeleteConfirmId(null)}
               onToggleStar={() => toggleStar(match.id)}
+              onEdit={() => navigate(`/log/edit/${match.id}`)}
               saving={saving}
             />
           ))}
@@ -227,10 +230,11 @@ interface MatchCardProps {
   onDeleteConfirm: () => void
   onDeleteCancel: () => void
   onToggleStar: () => void
+  onEdit: () => void
   saving: boolean
 }
 
-function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onToggleStar, saving }: MatchCardProps) {
+function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onToggleStar, onEdit, saving }: MatchCardProps) {
   const displayDate = toDisplay(matchDisplayDate(match))
 
   return (
@@ -280,6 +284,11 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                     ? <IconShield size={8} className="text-green-600" />
                     : <IconSkull size={8} className="text-red-600" />
                   }
+                </span>
+              )}
+              {!!slot.kills && slot.kills > 0 && (
+                <span className="absolute -top-1 -left-1 text-[8px] bg-orange-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold leading-none">
+                  {slot.kills}
                 </span>
               )}
             </div>
@@ -339,9 +348,14 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
               </button>
             </div>
           ) : (
-            <button onClick={onDeleteRequest} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600">
-              <IconTrash size={14} />Delete
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={onEdit} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-600">
+                <IconEdit size={14} />Edit
+              </button>
+              <button onClick={onDeleteRequest} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600">
+                <IconTrash size={14} />Delete
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -356,12 +370,17 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                 <div key={slot.boxId} className="flex items-start gap-2">
                   <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
                   <div className="flex-1">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <p className="text-xs font-medium text-gray-700">{slot.name}</p>
                       {slot.isMega && <span className="text-xs text-yellow-700 bg-yellow-100 px-1 rounded">⚡ Mega</span>}
                       {slot.survived !== undefined && (
                         <span className={`text-xs px-1 rounded flex items-center gap-0.5 ${slot.survived ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'}`}>
                           {slot.survived ? <><IconShield size={9} />Survived</> : <><IconSkull size={9} />Died</>}
+                        </span>
+                      )}
+                      {!!slot.kills && slot.kills > 0 && (
+                        <span className="text-xs text-orange-700 bg-orange-100 px-1 rounded font-semibold">
+                          ☠ {slot.kills}
                         </span>
                       )}
                     </div>

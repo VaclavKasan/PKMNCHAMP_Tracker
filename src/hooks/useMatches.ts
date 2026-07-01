@@ -23,5 +23,9 @@ export function useMatches() {
     await save(matches.map(m => m.id === id ? { ...m, starred: !m.starred } : m))
   }, [matches, save])
 
-  return { matches: sorted, loading, saving, error, addMatch, deleteMatch, toggleStar }
+  const updateMatch = useCallback(async (id: string, updates: Partial<Omit<Match, 'id' | 'date'>>) => {
+    await save(matches.map(m => m.id === id ? { ...m, ...updates } : m))
+  }, [matches, save])
+
+  return { matches: sorted, loading, saving, error, addMatch, updateMatch, deleteMatch, toggleStar }
 }

@@ -6,14 +6,24 @@ interface Props {
   onChange: (v: string) => void
 }
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAYS   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTHS = ['January','February','March','April','May','June',
                  'July','August','September','October','November','December']
 
-function toDisplay(iso: string) {
+function isoToDisplay(iso: string) {
   if (!iso) return ''
   const [y, m, d] = iso.split('-')
   return `${d}.${m}.${y}`
+}
+
+function displayToIso(text: string): string | null {
+  const match = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+  if (!match) return null
+  const [, d, m, y] = match
+  const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  const date = new Date(iso + 'T12:00:00')
+  if (isNaN(date.getTime())) return null
+  return iso
 }
 
 function today() {
@@ -23,9 +33,16 @@ function today() {
 export function DatePicker({ value, onChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
+  const [inputText, setInputText] = useState(isoToDisplay(value))
+
   const base = value ? new Date(value + 'T12:00:00') : new Date()
-  const [viewYear, setViewYear] = useState(base.getFullYear())
+  const [viewYear, setViewYear]   = useState(base.getFullYear())
   const [viewMonth, setViewMonth] = useState(base.getMonth())
+
+  // Sync display text when value changes externally
+  useEffect(() => {
+    setInputText(isoToDisplay(value))
+  }, [value])
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -34,6 +51,24 @@ export function DatePicker({ value, onChange }: Props) {
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
+
+  function handleTextChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const t = e.target.value
+    setInputText(t)
+    const iso = displayToIso(t)
+    if (iso) {
+      onChange(iso)
+      const d = new Date(iso + 'T12:00:00')
+      setViewYear(d.getFullYear())
+      setViewMonth(d.getMonth())
+    }
+  }
+
+  function handleTextBlur() {
+    // Snap back to canonical display if text is invalid
+    const iso = displayToIso(inputText)
+    if (!iso) setInputText(isoToDisplay(value))
+  }
 
   function prevMonth() {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
@@ -46,7 +81,6 @@ export function DatePicker({ value, onChange }: Props) {
 
   function buildCells() {
     const first = new Date(viewYear, viewMonth, 1)
-    // Monday=0 offset
     let offset = (first.getDay() + 6) % 7
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
     const cells: (number | null)[] = Array(offset).fill(null)
@@ -67,20 +101,28 @@ export function DatePicker({ value, onChange }: Props) {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        <IconCalendar size={16} className="text-gray-400 flex-shrink-0" />
-        <span className={value ? 'text-gray-900' : 'text-gray-400'}>
-          {value ? toDisplay(value) : 'Select date…'}
-        </span>
-      </button>
+      <div className="flex items-center border border-gray-300 rounded-lg bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+        <input
+          type="text"
+          value={inputText}
+          onChange={handleTextChange}
+          onBlur={handleTextBlur}
+          placeholder="DD.MM.YYYY"
+          inputMode="numeric"
+          className="flex-1 px-3 py-2 text-sm bg-transparent focus:outline-none min-w-0"
+        />
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="px-2 text-gray-400 hover:text-blue-500 flex-shrink-0"
+          tabIndex={-1}
+        >
+          <IconCalendar size={16} />
+        </button>
+      </div>
 
       {open && (
         <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-72">
-          {/* Month navigation */}
           <div className="flex items-center justify-between mb-3">
             <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-100 text-gray-600">
               <IconChevronLeft size={16} />
@@ -93,14 +135,12 @@ export function DatePicker({ value, onChange }: Props) {
             </button>
           </div>
 
-          {/* Day headers */}
           <div className="grid grid-cols-7 mb-1">
             {DAYS.map(d => (
               <div key={d} className="text-center text-xs text-gray-400 py-1">{d}</div>
             ))}
           </div>
 
-          {/* Day cells */}
           <div className="grid grid-cols-7 gap-0.5">
             {cells.map((d, i) => {
               if (!d) return <div key={i} />
@@ -127,7 +167,6 @@ export function DatePicker({ value, onChange }: Props) {
             })}
           </div>
 
-          {/* Today shortcut */}
           <button
             onClick={() => { onChange(todayStr); setOpen(false) }}
             className="mt-2 w-full text-xs text-blue-600 hover:text-blue-800 py-1"
