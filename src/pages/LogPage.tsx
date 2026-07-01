@@ -381,10 +381,11 @@ export function LogPage() {
       }
       if (isEdit) {
         await updateMatch(matchId!, payload)
+        navigate('/history')
       } else {
         await addMatch(payload)
+        clearForm()
       }
-      navigate('/history')
     } catch (err) {
       setSaveError((err as Error).message)
     }
