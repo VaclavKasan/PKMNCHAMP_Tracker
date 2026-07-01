@@ -21,5 +21,10 @@ export function useBox() {
     await save(box.filter(p => p.id !== id))
   }, [box, save])
 
-  return { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon }
+  const batchAddPokemon = useCallback(async (items: Omit<BoxPokemon, 'id' | 'addedAt'>[]) => {
+    const entries: BoxPokemon[] = items.map(p => ({ ...p, id: uid(), addedAt: new Date().toISOString() }))
+    await save([...box, ...entries])
+  }, [box, save])
+
+  return { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon, batchAddPokemon }
 }

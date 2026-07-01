@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useBox } from '../hooks/useBox'
 import { Autocomplete } from '../components/Autocomplete'
 import { PokemonImage } from '../components/PokemonImage'
@@ -8,7 +8,9 @@ import { calcStat, STAT_KEYS, STAT_COLORS, MAX_EV_TOTAL, MAX_EV_SINGLE } from '.
 import { itemSpriteUrl } from '../utils/sprites'
 import type { PokemonEntry, MoveEntry, BoxPokemon, StatSpread } from '../types'
 import type { StatKey } from '../utils/statCalc'
-import { IconPlus, IconEdit, IconTrash, IconCheck, IconX, IconLoader, IconChevronUp, IconChevronDown } from '@tabler/icons-react'
+import { IconPlus, IconEdit, IconTrash, IconCheck, IconX, IconLoader, IconChevronUp, IconChevronDown, IconUpload } from '@tabler/icons-react'
+import { parseShowdownTeam } from '../utils/showdownImport'
+import type { ParsedPokemon } from '../utils/showdownImport'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BAR_REF = 250   // visual bar scale — most L50 stats fall well within this
@@ -594,10 +596,110 @@ function EditForm({
   )
 }
 
+// ── Showdown import panel ─────────────────────────────────────────────────────
+function ImportPanel({ onImport, onCancel }: {
+  onImport: (items: ParsedPokemon[]) => void
+  onCancel: () => void
+}) {
+  const [text, setText] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const parsed = useMemo(() => (text.trim() ? parseShowdownTeam(text) : []), [text])
+  const valid  = parsed.filter(p => p.matched)
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setText(ev.target?.result as string ?? '')
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900">Import from Pokémon Showdown</h3>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+          <IconX size={18} />
+        </button>
+      </div>
+
+      {/* File loader */}
+      <input ref={fileRef} type="file" accept=".txt" className="hidden" onChange={handleFile} />
+      <button
+        onClick={() => fileRef.current?.click()}
+        className="flex items-center gap-2 text-sm border border-gray-200 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-50"
+      >
+        <IconUpload size={14} /> Load .txt file
+      </button>
+
+      {/* Paste area */}
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder={"Paste Pokémon Showdown export here…\n\nSinistcha @ Kasib Berry\nAbility: Hospitality\nBold Nature\n- Matcha Gotcha\n- Protect\n…"}
+        rows={8}
+        className="w-full border border-gray-200 rounded-xl p-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
+      {/* Preview */}
+      {parsed.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            {parsed.length} Pokémon detected · {valid.length} ready to import
+          </p>
+          <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+            {parsed.map((p, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-3 py-2">
+                {p.matched
+                  ? <PokemonImage national={p.national} slug={p.slug} isForm={p.isForm} name={p.name} size="sm" />
+                  : <div className="w-8 h-8 rounded-full bg-gray-100 flex-shrink-0" />
+                }
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm font-medium ${p.matched ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {p.name}
+                  </span>
+                  {p.item && (
+                    <span className="text-xs text-gray-400 ml-1.5">@ {p.item}</span>
+                  )}
+                </div>
+                {p.matched
+                  ? <span className="text-xs font-semibold text-green-600 flex-shrink-0">✓</span>
+                  : <span className="text-xs text-orange-400 flex-shrink-0">not found</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => onImport(valid)}
+          disabled={valid.length === 0}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <IconCheck size={16} />
+          Import {valid.length > 0 ? `${valid.length} Pokémon` : '…'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="border border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function BoxPage() {
-  const { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon } = useBox()
+  const { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon, batchAddPokemon } = useBox()
   const [showForm, setShowForm]       = useState(false)
+  const [showImport, setShowImport]   = useState(false)
   const [editId, setEditId]           = useState<string | null>(null)
   const [initialForm, setInitialForm] = useState<PokemonForm>(emptyForm)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -619,6 +721,18 @@ export function BoxPage() {
       evTraining: poke.evTraining ?? emptyEv(),
     })
     setShowForm(true)
+  }
+
+  async function handleImport(items: ParsedPokemon[]) {
+    await batchAddPokemon(items.map(p => ({
+      slug: p.slug, name: p.name,
+      national: p.national, isForm: p.isForm,
+      types: p.types,
+      moves: p.moves.filter(m => m.trim()),
+      ability: p.ability, item: p.item,
+      nature: p.natureSlug, evTraining: p.evTraining,
+    })))
+    setShowImport(false)
   }
 
   async function handleSave(form: PokemonForm) {
@@ -647,19 +761,36 @@ export function BoxPage() {
         <h2 className="text-xl font-semibold text-gray-900">My Box</h2>
         <div className="flex items-center gap-2">
           {saving && <IconLoader size={16} className="animate-spin text-blue-600" />}
-          {!showForm && (
-            <button
-              onClick={openAddForm}
-              className="flex items-center gap-1 bg-blue-600 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-blue-700"
-            >
-              <IconPlus size={16} /> Add Pokémon
-            </button>
+          {!showForm && !showImport && (
+            <>
+              <button
+                onClick={() => setShowImport(true)}
+                className="flex items-center gap-1 border border-gray-200 text-gray-600 px-3 py-2 rounded-xl text-sm font-medium hover:bg-gray-50"
+              >
+                <IconUpload size={16} /> Import
+              </button>
+              <button
+                onClick={openAddForm}
+                className="flex items-center gap-1 bg-blue-600 text-white px-3 py-2 rounded-xl text-sm font-medium hover:bg-blue-700"
+              >
+                <IconPlus size={16} /> Add Pokémon
+              </button>
+            </>
           )}
         </div>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">{error}</div>
+      )}
+
+      {showImport && (
+        <div className="mb-4">
+          <ImportPanel
+            onImport={handleImport}
+            onCancel={() => setShowImport(false)}
+          />
+        </div>
       )}
 
       {showForm && (
