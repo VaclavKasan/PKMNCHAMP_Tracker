@@ -109,3 +109,24 @@ export interface DriveFileState<T> {
   saving:  boolean
   error:   string | null
 }
+
+// ── Widget dashboard ──────────────────────────────────────────────────────────
+
+export type WidgetId =
+  | 'overall'
+  | 'vs_strategies'
+  | 'strategy_highlights'
+  | 'my_performance'
+  | 'my_survived'
+  | 'enemy_survived'
+  | 'enemy_frequency'
+  | 'kill_leaders_my'
+  | 'kill_leaders_enemy'
+  | 'streak'
+  | 'stats_by_rank'
+  | 'move_usage'
+  | 'enemy_items'
+
+export interface WidgetConfig {
+  visibleIds: WidgetId[]
+}

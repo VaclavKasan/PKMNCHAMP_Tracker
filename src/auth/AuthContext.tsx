@@ -128,7 +128,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           },
         })
-        tokenClientRef.current.requestAccessToken({ prompt: '' })
+        // Skip proactive refresh when a valid cached token already exists.
+        // Firefox (and other browsers with strict cookie policies) trigger a
+        // visible popup if requestAccessToken is called unnecessarily.
+        // getValidToken() handles lazy refresh when the token actually expires.
+        const cached = readCache()
+        const hasValidToken = cached && cached.accessToken && cached.tokenExpiry > Date.now()
+        if (!hasValidToken) {
+          tokenClientRef.current.requestAccessToken({ prompt: '' })
+        }
       } catch (e) {
         console.error('GIS initTokenClient failed:', e)
         setState(s => ({
