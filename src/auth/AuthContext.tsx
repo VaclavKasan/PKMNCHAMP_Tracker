@@ -10,6 +10,57 @@ const SCOPES = [
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 
+// ── localStorage cache ────────────────────────────────────────────────────────
+const CACHE_KEY = 'pkmnchamp_auth_v1'
+
+interface CachedAuth {
+  user:         GoogleUser
+  accessToken:  string
+  tokenExpiry:  number
+}
+
+function readCache(): CachedAuth | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const c = JSON.parse(raw) as CachedAuth
+    // Require all fields to be present
+    if (!c.user || !c.accessToken || !c.tokenExpiry) return null
+    return c
+  } catch {
+    return null
+  }
+}
+
+function writeCache(data: CachedAuth) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)) } catch {}
+}
+
+function clearCache() {
+  try { localStorage.removeItem(CACHE_KEY) } catch {}
+}
+
+// Build the initial state from cache — eliminates the login-screen flash for
+// returning users because loading starts false.
+function buildInitialState(): AuthState {
+  if (!CLIENT_ID) {
+    return { user: null, accessToken: null, tokenExpiry: null, loading: false, error: 'App not configured: VITE_GOOGLE_CLIENT_ID is missing.' }
+  }
+  const cache = readCache()
+  if (cache) {
+    const tokenStillValid = cache.tokenExpiry > Date.now()
+    return {
+      user:        cache.user,
+      accessToken: tokenStillValid ? cache.accessToken : null,
+      tokenExpiry: cache.tokenExpiry,
+      loading:     false,   // ← show app immediately; token refreshes in background
+      error:       null,
+    }
+  }
+  return { user: null, accessToken: null, tokenExpiry: null, loading: true, error: null }
+}
+
+// ── Context ───────────────────────────────────────────────────────────────────
 interface AuthContextValue extends AuthState {
   signIn:        () => void
   signOut:       () => void
@@ -19,34 +70,41 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null, accessToken: null, tokenExpiry: null, loading: true, error: null,
-  })
-  const tokenClientRef = useRef<google.accounts.oauth2.TokenClient | null>(null)
+  const [state, setState] = useState<AuthState>(buildInitialState)
+  const tokenClientRef    = useRef<google.accounts.oauth2.TokenClient | null>(null)
   const refreshPromiseRef = useRef<Promise<string | null> | null>(null)
+  const stateRef          = useRef(state)
+  useEffect(() => { stateRef.current = state }, [state])
 
   function handleTokenResponse(resp: google.accounts.oauth2.TokenResponse) {
     if (resp.error) {
       setState(s => ({ ...s, loading: false, error: resp.error ?? 'Auth error' }))
+      refreshPromiseRef.current = null
       return
     }
     const expiry = Date.now() + (resp.expires_in - 60) * 1000
-    fetchUserInfo(resp.access_token).then(user => {
-      setState({ user, accessToken: resp.access_token, tokenExpiry: expiry, loading: false, error: null })
-    })
-    refreshPromiseRef.current = null
+    const token  = resp.access_token
+
+    const existingUser = stateRef.current.user
+    if (existingUser) {
+      // Background refresh — token was stale, user already visible in UI
+      writeCache({ user: existingUser, accessToken: token, tokenExpiry: expiry })
+      setState(s => ({ ...s, accessToken: token, tokenExpiry: expiry, loading: false, error: null }))
+      refreshPromiseRef.current = null
+    } else {
+      // First sign-in — fetch profile info then update state
+      fetchUserInfo(token).then(user => {
+        writeCache({ user, accessToken: token, tokenExpiry: expiry })
+        setState({ user, accessToken: token, tokenExpiry: expiry, loading: false, error: null })
+      })
+      refreshPromiseRef.current = null
+    }
   }
 
   useEffect(() => {
     let cancelled = false
 
-    if (!CLIENT_ID) {
-      setState(s => ({
-        ...s, loading: false,
-        error: 'App not configured: VITE_GOOGLE_CLIENT_ID is missing. Set it as a GitHub repository secret.',
-      }))
-      return
-    }
+    if (!CLIENT_ID) return  // already set error in buildInitialState
 
     function initClient() {
       if (cancelled) return
@@ -56,26 +114,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           scope: SCOPES,
           callback: handleTokenResponse,
           error_callback: (err) => {
-            // suppressed_by_user = silent auto-login attempt blocked → show button, no error text
+            refreshPromiseRef.current = null
             if (err.type === 'suppressed_by_user') {
+              // Silent auth blocked (3rd-party cookie restriction etc.)
+              // If we have a cached user, keep them signed in; otherwise show button.
               setState(s => ({ ...s, loading: false, error: null }))
             } else {
               setState(s => ({
                 ...s, loading: false,
-                error: friendlyError(err.type),
+                // Don't surface errors when user is already loaded from cache
+                error: s.user ? null : friendlyError(err.type),
               }))
             }
-            refreshPromiseRef.current = null
           },
         })
         tokenClientRef.current.requestAccessToken({ prompt: '' })
       } catch (e) {
         console.error('GIS initTokenClient failed:', e)
-        setState(s => ({ ...s, loading: false, error: 'Google sign-in failed to initialize. See browser console.' }))
+        setState(s => ({
+          ...s, loading: false,
+          error: s.user ? null : 'Google sign-in failed to initialize. See browser console.',
+        }))
       }
     }
 
-    // Fallback: if no callback fires in 5s, stop spinning so the button stays reachable.
+    // Safety fallback: if nothing fires in 5 s, stop spinning
     const timeout = setTimeout(() => {
       setState(s => s.loading ? { ...s, loading: false } : s)
     }, 5000)
@@ -87,10 +150,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (script) {
         script.addEventListener('load', initClient)
         script.addEventListener('error', () => {
-          setState(s => ({ ...s, loading: false, error: 'Could not load Google sign-in. Check your internet connection.' }))
+          setState(s => ({
+            ...s, loading: false,
+            error: s.user ? null : 'Could not load Google sign-in. Check your internet connection.',
+          }))
         })
       } else {
-        setState(s => ({ ...s, loading: false, error: 'Google sign-in script not found.' }))
+        setState(s => ({
+          ...s, loading: false,
+          error: s.user ? null : 'Google sign-in script not found.',
+        }))
       }
     }
 
@@ -122,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function signOut() {
+    clearCache()
     if (state.user) google.accounts.id.disableAutoSelect()
     setState({ user: null, accessToken: null, tokenExpiry: null, loading: false, error: null })
   }

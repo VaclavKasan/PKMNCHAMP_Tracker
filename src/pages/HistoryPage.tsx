@@ -272,7 +272,7 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
         <div className="flex gap-1 mb-2 flex-wrap">
           {match.myTeam.map(slot => (
             <div key={slot.boxId} className="relative">
-              <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
+              <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" isMega={!!(slot as { isMega?: boolean }).isMega} />
               {slot.isMega && (
                 <span className="absolute -top-1 -right-1 text-[8px] bg-yellow-400 rounded-full w-3.5 h-3.5 flex items-center justify-center">⚡</span>
               )}
@@ -300,7 +300,7 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
           <div className="flex gap-1 mb-2 flex-wrap">
             {match.enemyTeam.filter(s => s.name).map((slot, i) => (
               <div key={i} className="relative">
-                <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
+                <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" isMega={!!(slot as { isMega?: boolean }).isMega} />
                 {slot.survived !== undefined && (
                   <span className={`absolute -bottom-1 -right-1 rounded-full w-3.5 h-3.5 flex items-center justify-center ${
                     slot.survived ? 'bg-green-100' : 'bg-red-100'
@@ -368,7 +368,7 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
             <div className="space-y-2">
               {match.myTeam.map(slot => (
                 <div key={slot.boxId} className="flex items-start gap-2">
-                  <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
+                  <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" isMega={!!(slot as { isMega?: boolean }).isMega} />
                   <div className="flex-1">
                     <div className="flex items-center gap-1 flex-wrap">
                       <p className="text-xs font-medium text-gray-700">{slot.name}</p>
@@ -404,7 +404,7 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
               <div className="space-y-2">
                 {match.enemyTeam.filter(s => s.name).map((slot, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
+                    <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" isMega={!!(slot as { isMega?: boolean }).isMega} />
                     <div className="flex-1">
                       <div className="flex items-center gap-1">
                         <p className="text-xs font-medium text-gray-700">{slot.name}</p>

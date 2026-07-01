@@ -374,7 +374,7 @@ export function LogPage() {
                 <div key={sel.boxId} className="bg-white border-2 border-blue-200 rounded-xl p-2.5 space-y-2">
                   {/* Header */}
                   <div className="flex items-center gap-1.5">
-                    <PokemonImage national={sel.national} slug={sel.slug} isForm={sel.isForm} name={sel.name} size="sm" />
+                    <PokemonImage national={sel.national} slug={sel.slug} isForm={sel.isForm} name={sel.name} size="sm" isMega={sel.isMega} item={boxPoke?.item} />
                     <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{sel.name}</span>
                     <button
                       onClick={() => toggleMyMon(sel.boxId)}
