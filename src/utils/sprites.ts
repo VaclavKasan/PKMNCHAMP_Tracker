@@ -8,9 +8,20 @@ const POKEAPI  = (n: number) =>
 const SHOWDOWN = (slug: string) =>
   `https://play.pokemonshowdown.com/sprites/dex/${slug}.png`
 
+// Detect Showdown mega slugs (e.g. charizardmegay, venusaurmega) and return PokéAPI URL.
+function megaSlugUrl(slug: string): string | null {
+  let base: string, key: string
+  if (slug.endsWith('megax')) { base = slug.slice(0, -5); key = `${base}-x` }
+  else if (slug.endsWith('megay')) { base = slug.slice(0, -5); key = `${base}-y` }
+  else if (slug.endsWith('mega'))  { base = slug.slice(0, -4); key = base }
+  else return null
+  const id = MEGA_IDS[key]
+  return id ? POKEAPI(id) : null
+}
+
 export function spriteUrl(national: number | null | undefined, slug: string, isForm: boolean): string {
   if (!isForm && national) return POKEAPI(national)
-  return SHOWDOWN(slug)
+  return megaSlugUrl(slug) ?? SHOWDOWN(slug)
 }
 
 export function megaSpriteUrl(slug: string, item?: string): string {

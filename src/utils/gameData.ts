@@ -48,6 +48,15 @@ export function searchItems(q: string, limit = 8): { slug: string; name: string 
     .slice(0, limit)
 }
 
+// "Charizard-Mega-X" → "Mega Charizard X", "Venusaur-Mega" → "Mega Venusaur"
+export function formatPokemonName(name: string): string {
+  let m = name.match(/^(.+)-Mega-([XY])$/i)
+  if (m) return `Mega ${m[1]} ${m[2].toUpperCase()}`
+  m = name.match(/^(.+)-Mega$/i)
+  if (m) return `Mega ${m[1]}`
+  return name
+}
+
 export function findPokemonByName(name: string): PokemonEntry | undefined {
   const lower = name.toLowerCase()
   return allPokemon.find(p => p.name.toLowerCase() === lower || p.slug === lower)

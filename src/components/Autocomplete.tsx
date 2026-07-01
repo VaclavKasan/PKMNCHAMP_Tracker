@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { PokemonEntry, MoveEntry } from '../types'
 import { typeClass, categoryClass } from '../utils/moveColors'
+import { formatPokemonName } from '../utils/gameData'
 
 // ── Pokemon mode ──────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export function Autocomplete(props: Props) {
 
 function PokemonRow({ entry }: { entry: PokemonEntry }) {
   return (
-    <span className="font-medium text-gray-900">{entry.name}</span>
+    <span className="font-medium text-gray-900">{formatPokemonName(entry.name)}</span>
   )
 }
 

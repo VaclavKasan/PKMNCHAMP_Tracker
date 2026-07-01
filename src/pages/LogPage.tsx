@@ -7,7 +7,7 @@ import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
 import { RegulationPicker } from '../components/RegulationPicker'
-import { searchPokemon, searchMoves, megaCapableSet } from '../utils/gameData'
+import { searchPokemon, searchMoves, megaCapableSet, formatPokemonName } from '../utils/gameData'
 import { PRESET_ARCHETYPES } from '../utils/archetypes'
 import { DEFAULT_REGULATION, RANKS, DEFAULT_RANK, rankBallUrl } from '../utils/regulations'
 import type { PokemonEntry, MoveEntry, EnemySlot, MatchTeamSlot } from '../types'
@@ -213,7 +213,7 @@ export function LogPage() {
     }))
     const filledSlots: EnemySlotForm[] = m.enemyTeam.map(e => ({
       ...newEnemySlot(),
-      nameQuery: e.name, name: e.name, slug: e.slug,
+      nameQuery: formatPokemonName(e.name), name: formatPokemonName(e.name), slug: e.slug,
       national: e.national, isForm: e.isForm,
       ability: e.ability ?? '',
       item: e.item ?? '',
@@ -285,10 +285,11 @@ export function LogPage() {
   }
 
   function selectEnemyPokemon(id: string, entry: PokemonEntry) {
+    const displayName = formatPokemonName(entry.name)
     setEnemySlots(s => s.map(slot => slot.id !== id ? slot : {
       ...slot,
-      nameQuery: entry.name, nameSuggestions: [],
-      name: entry.name, slug: entry.slug,
+      nameQuery: displayName, nameSuggestions: [],
+      name: displayName, slug: entry.slug,
       national: entry.national ?? null, isForm: entry.isForm,
     }))
   }
