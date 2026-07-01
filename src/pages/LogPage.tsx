@@ -188,6 +188,20 @@ export function LogPage() {
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  function clearForm() {
+    setMatchDate(new Date().toISOString().split('T')[0])
+    setMatchTime(nowTime())
+    setRegulation(DEFAULT_REGULATION)
+    setStarred(false)
+    setMyTeam([])
+    setEnemySlots([newEnemySlot(), newEnemySlot(), newEnemySlot(), newEnemySlot()])
+    setStratQuery('')
+    setStratOpen(false)
+    setResult(null)
+    setNotes('')
+    setSaveError(null)
+  }
+
   // ── Edit mode: pre-fill from existing match ───────────────────────────────
   const initDone = useRef(false)
   useEffect(() => {
@@ -389,11 +403,19 @@ export function LogPage() {
 
       {/* ── Match meta ────────────────────────────────────── */}
       <section className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-        {isEdit && (
-          <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-            <span className="text-sm font-semibold text-blue-700">Editing match</span>
-          </div>
-        )}
+        <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+          <span className={`text-sm font-semibold ${isEdit ? 'text-blue-700' : 'text-gray-700'}`}>
+            {isEdit ? 'Editing match' : 'New match'}
+          </span>
+          {!isEdit && (
+            <button
+              onClick={clearForm}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+            >
+              <IconX size={12} /> Clear
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
