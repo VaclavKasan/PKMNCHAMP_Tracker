@@ -176,6 +176,7 @@ export function LogPage() {
   // ── Strategy ──────────────────────────────────────────────────────────────
   const [stratQuery, setStratQuery] = useState('')
   const [stratOpen, setStratOpen] = useState(false)
+  const [stratCursor, setStratCursor] = useState(0)
 
   const usedArchetypes = [...new Set(matches.map(m => m.enemyStrategy).filter(Boolean))]
   const allArchetypes  = [...new Set([...PRESET_ARCHETYPES, ...usedArchetypes])]
@@ -707,19 +708,27 @@ export function LogPage() {
             <input
               type="text"
               value={stratQuery}
-              onChange={e => { setStratQuery(e.target.value); setStratOpen(true) }}
+              onChange={e => { setStratQuery(e.target.value); setStratOpen(true); setStratCursor(0) }}
               onFocus={() => setStratOpen(true)}
               onBlur={() => setTimeout(() => setStratOpen(false), 150)}
+              onKeyDown={e => {
+                if (!stratOpen || stratSuggestions.length === 0) return
+                if (e.key === 'ArrowDown') { e.preventDefault(); setStratCursor(c => Math.min(c + 1, stratSuggestions.length - 1)) }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setStratCursor(c => Math.max(c - 1, 0)) }
+                else if (e.key === 'Enter') { e.preventDefault(); setStratQuery(stratSuggestions[stratCursor]); setStratOpen(false) }
+                else if (e.key === 'Escape') { setStratOpen(false) }
+              }}
               placeholder="e.g. Rain (Pelipper), Trick Room…"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {stratOpen && stratSuggestions.length > 0 && (
               <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                {stratSuggestions.map(s => (
+                {stratSuggestions.map((s, i) => (
                   <li
                     key={s}
                     onMouseDown={() => { setStratQuery(s); setStratOpen(false) }}
-                    className="px-3 py-2 cursor-pointer text-sm hover:bg-blue-50"
+                    onMouseEnter={() => setStratCursor(i)}
+                    className={`px-3 py-2 cursor-pointer text-sm ${i === stratCursor ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
                     <ArchetypeBadge arch={s} />
                   </li>

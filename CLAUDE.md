@@ -27,9 +27,10 @@ All user data is stored in the user's private **Google Drive `appDataFolder`** (
 - `src/drive/api.ts` — raw Drive REST calls (list, read, create, update).
 - `src/drive/useDriveFile.ts` — React hook that wraps a single JSON file in Drive. On mount it lists app files, finds by name, reads it. The `save(newData)` function either creates or patches the file. This is the **only persistence layer**.
 
-The two Drive files are:
+The Drive files are:
 - `box.json` — `BoxPokemon[]` (the user's Pokémon roster)
 - `matches.json` — `Match[]` (match history)
+- `widgets.json` — `WidgetConfig { visibleIds: WidgetId[] }` (stats dashboard layout)
 
 ### Domain hooks
 `src/hooks/useBox.ts` and `src/hooks/useMatches.ts` wrap `useDriveFile` with domain operations. All state lives in Drive; there is no local state beyond what's in these hooks and component-local UI state.
@@ -47,8 +48,9 @@ This app uses a simplified EV system called **training points** (not standard EV
 ### Sprite URLs
 `src/utils/sprites.ts`:
 - Non-form base Pokémon: PokéAPI official artwork (`/official-artwork/{national}.png`)
-- Form Pokémon (isForm=true): Pokémon Showdown dex CDN (`/sprites/dex/{slug}.png`)
-- Mega Pokémon: PokéAPI official artwork via `megaIds.json` lookup (`slug`, `slug-x`, or `slug-y` depending on item name). Falls back to Showdown for non-canonical custom megas. `PokemonImage` chains PokéAPI → base sprite → letter placeholder on error.
+- Form/mega Pokémon (isForm=true): `megaSlugUrl()` detects `mega`/`megax`/`megay`/`megaz` slug suffixes and looks up the PokéAPI ID in `megaIds.json`. Falls back to Showdown CDN, then (via `PokemonImage`) to the base national artwork, then a letter placeholder.
+- `src/data/megaIds.json` covers all XY/ORAS megas and all Legends Z-A megas (IDs 10278–10326). Manually maintained.
+- `PokemonImage`: cached images fire `load` synchronously before React attaches `onLoad`; a `useEffect` checks `img.complete` after mount to catch this (fixes sprites going blank after SPA navigation).
 
 ### Regulations
 `src/utils/regulations.ts` is the single source of truth. Add new regulation objects to the `REGULATIONS` array; the last entry becomes the new default. Currently only Reg M-B exists.
@@ -56,8 +58,16 @@ This app uses a simplified EV system called **training points** (not standard EV
 ### Pokémon Showdown import
 `src/utils/showdownImport.ts` parses Showdown export text. Recognises both `EVs:` (÷8 conversion) and `# Champions stat points:` (direct). Capped at 20 Pokémon per import. `batchAddPokemon` in `useBox` saves the whole array in one Drive write.
 
+### Stats dashboard
+`src/pages/StatsPage.tsx` renders a customizable widget grid. `src/hooks/useWidgetConfig.ts` persists the visible widget list and order to `widgets.json` in Drive. The `WIDGET_REGISTRY` (13 widgets) defines available widgets; stored order is preserved (enables drag-free reordering via ▲/▼ buttons in edit mode). In edit mode a pencil/check toggle reveals per-widget remove (×) and reorder (▲▼) buttons plus an "Add Widget" panel.
+
+### Log page behaviour
+- After saving a **new** match the form clears in place (ready for the next game in a series). Saving an **edit** navigates to history.
+- Enemy strategy field supports arrow-key navigation and Enter to select from the dropdown.
+- Enemy Pokémon slots: selecting a Pokémon shows its known abilities as one-click chips (auto-fills if only one ability); item field uses type-to-search Autocomplete across all 583 items.
+
 ### PWA
-`vite-plugin-pwa` with `registerType: 'autoUpdate'` — the service worker auto-activates on new deploys. Sprites from PokéAPI and Showdown CDN are cached via Workbox `CacheFirst` runtime rules (30-day TTL, up to 500 entries).
+`vite-plugin-pwa` with `registerType: 'autoUpdate'` — the service worker auto-activates on new deploys. Sprites from PokéAPI, Showdown CDN, and PokémonDB are cached via Workbox `CacheFirst` runtime rules (30-day TTL) with `cacheableResponse: { statuses: [0, 200] }` to handle cross-origin responses correctly on mobile.
 
 ### Deployment
 GitHub Actions (`.github/workflows/deploy.yml`) builds and deploys to GitHub Pages. The build requires `VITE_GOOGLE_CLIENT_ID` set as a **repository secret** (not an environment secret — build jobs can't access environment secrets). Pages source must be set to "GitHub Actions" in repo settings.
