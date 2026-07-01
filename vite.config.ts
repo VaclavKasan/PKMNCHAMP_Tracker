@@ -39,6 +39,16 @@ export default defineConfig({
             options: {
               cacheName: 'pokeapi-sprites',
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/play\.pokemonshowdown\.com\/sprites\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'showdown-sprites',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
           {
@@ -47,6 +57,7 @@ export default defineConfig({
             options: {
               cacheName: 'pokemondb-sprites',
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
         ],

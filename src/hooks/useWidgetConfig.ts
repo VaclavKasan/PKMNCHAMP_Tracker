@@ -34,13 +34,10 @@ export function useWidgetConfig() {
     DEFAULT_CONFIG,
   )
 
-  // Normalise: strip unknown IDs, re-sort into canonical registry order
+  // Normalise: strip unknown IDs, preserve stored order (enables user reordering)
   const raw = data ?? DEFAULT_CONFIG
   const knownIds = new Set(WIDGET_REGISTRY.map(w => w.id))
-  const validVisible = raw.visibleIds.filter(id => knownIds.has(id as WidgetId))
-  const visibleIds: WidgetId[] = WIDGET_REGISTRY
-    .map(w => w.id)
-    .filter(id => validVisible.includes(id))
+  const visibleIds: WidgetId[] = raw.visibleIds.filter(id => knownIds.has(id as WidgetId)) as WidgetId[]
 
   const addWidget = useCallback(async (id: WidgetId) => {
     await save({ visibleIds: [...visibleIds, id] })
@@ -50,5 +47,21 @@ export function useWidgetConfig() {
     await save({ visibleIds: visibleIds.filter(v => v !== id) })
   }, [visibleIds, save])
 
-  return { visibleIds, loading, saving, error, addWidget, removeWidget }
+  const moveWidgetUp = useCallback(async (id: WidgetId) => {
+    const idx = visibleIds.indexOf(id)
+    if (idx <= 0) return
+    const next = [...visibleIds]
+    ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    await save({ visibleIds: next })
+  }, [visibleIds, save])
+
+  const moveWidgetDown = useCallback(async (id: WidgetId) => {
+    const idx = visibleIds.indexOf(id)
+    if (idx < 0 || idx >= visibleIds.length - 1) return
+    const next = [...visibleIds]
+    ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    await save({ visibleIds: next })
+  }, [visibleIds, save])
+
+  return { visibleIds, loading, saving, error, addWidget, removeWidget, moveWidgetUp, moveWidgetDown }
 }

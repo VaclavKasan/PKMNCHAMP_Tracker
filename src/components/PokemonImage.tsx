@@ -52,7 +52,7 @@ export function PokemonImage({ national, slug, isForm, name, size = 'md', isMega
           key={currentUrl}
           src={currentUrl}
           alt={name}
-          loading="lazy"
+
           className={`object-contain ${SIZES[size]} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity`}
           onLoad={() => setLoaded(true)}
           onError={handleError}

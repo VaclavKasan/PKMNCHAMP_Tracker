@@ -9,6 +9,7 @@ import type { Match, WidgetId } from '../types'
 import {
   IconShield, IconSkull, IconTrophy, IconSword,
   IconPencil, IconCheck, IconPlus, IconX,
+  IconChevronUp, IconChevronDown,
 } from '@tabler/icons-react'
 
 // ── Stats computation ─────────────────────────────────────────────────────────
@@ -232,7 +233,7 @@ function renderWidget(id: WidgetId, s: ComputedStats): ReactNode {
 
 export function StatsPage() {
   const { matches, loading: matchesLoading } = useMatches()
-  const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget } = useWidgetConfig()
+  const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown } = useWidgetConfig()
   const [regulation, setRegulation] = useState<'all' | string>('all')
   const [editMode, setEditMode] = useState(false)
 
@@ -302,20 +303,40 @@ export function StatsPage() {
         </div>
       ) : (
         <>
-          {visibleIds.map(id => {
+          {visibleIds.map((id, idx) => {
             const content = renderWidget(id, stats)
             if (!content) return null
             return (
               <div key={id} className="relative">
                 {editMode && (
-                  <button
-                    onClick={() => removeWidget(id)}
-                    disabled={configSaving}
-                    aria-label="Remove widget"
-                    className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 disabled:opacity-50 shadow-sm"
-                  >
-                    <IconX size={11} />
-                  </button>
+                  <>
+                    <div className="absolute -top-2 left-2 z-10 flex flex-col gap-0.5">
+                      <button
+                        onClick={() => moveWidgetUp(id)}
+                        disabled={configSaving || idx === 0}
+                        aria-label="Move widget up"
+                        className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        <IconChevronUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => moveWidgetDown(id)}
+                        disabled={configSaving || idx === visibleIds.length - 1}
+                        aria-label="Move widget down"
+                        className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        <IconChevronDown size={11} />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => removeWidget(id)}
+                      disabled={configSaving}
+                      aria-label="Remove widget"
+                      className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 disabled:opacity-50 shadow-sm"
+                    >
+                      <IconX size={11} />
+                    </button>
+                  </>
                 )}
                 {content}
               </div>
