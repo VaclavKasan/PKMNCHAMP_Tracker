@@ -7,7 +7,7 @@ import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
 import { RegulationPicker } from '../components/RegulationPicker'
-import { searchPokemon, searchMoves, megaCapableSet, formatPokemonName } from '../utils/gameData'
+import { searchPokemon, searchMoves, searchAbilities, searchItems, megaCapableSet, formatPokemonName, allPokemon } from '../utils/gameData'
 import { PRESET_ARCHETYPES } from '../utils/archetypes'
 import { DEFAULT_REGULATION, RANKS, DEFAULT_RANK, rankBallUrl } from '../utils/regulations'
 import type { PokemonEntry, MoveEntry, EnemySlot, MatchTeamSlot } from '../types'
@@ -35,7 +35,10 @@ interface EnemySlotForm {
   nameQuery:       string
   nameSuggestions: PokemonEntry[]
   ability:         string
+  knownAbilities:  string[]
+  abilitySuggestions: { slug: string; name: string; description: string | null }[]
   item:            string
+  itemSuggestions: { slug: string; name: string }[]
   moveQueries:     [string, string, string, string]
   moveSuggestions: [MoveEntry[], MoveEntry[], MoveEntry[], MoveEntry[]]
   survived:        boolean
@@ -47,7 +50,8 @@ function newEnemySlot(): EnemySlotForm {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
     name: '', slug: '', national: null, isForm: false,
     nameQuery: '', nameSuggestions: [],
-    ability: '', item: '',
+    ability: '', knownAbilities: [], abilitySuggestions: [],
+    item: '', itemSuggestions: [],
     moveQueries: ['', '', '', ''],
     moveSuggestions: [[], [], [], []],
     survived: false,
@@ -216,6 +220,7 @@ export function LogPage() {
       nameQuery: formatPokemonName(e.name), name: formatPokemonName(e.name), slug: e.slug,
       national: e.national, isForm: e.isForm,
       ability: e.ability ?? '',
+      knownAbilities: allPokemon.find(p => p.slug === e.slug)?.abilities ?? [],
       item: e.item ?? '',
       moveQueries: [
         e.movesUsed[0] ?? '', e.movesUsed[1] ?? '',
@@ -286,11 +291,15 @@ export function LogPage() {
 
   function selectEnemyPokemon(id: string, entry: PokemonEntry) {
     const displayName = formatPokemonName(entry.name)
+    const knownAbilities = entry.abilities ?? []
     setEnemySlots(s => s.map(slot => slot.id !== id ? slot : {
       ...slot,
       nameQuery: displayName, nameSuggestions: [],
       name: displayName, slug: entry.slug,
       national: entry.national ?? null, isForm: entry.isForm,
+      knownAbilities,
+      ability: knownAbilities.length === 1 ? knownAbilities[0] : slot.ability,
+      abilitySuggestions: [],
     }))
   }
 
@@ -605,20 +614,50 @@ export function LogPage() {
                 </>
               )}
 
-              <input
-                type="text"
-                value={slot.ability}
-                onChange={e => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : { ...sl, ability: e.target.value }))}
-                placeholder="Ability (not known)"
-                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
-              />
+              <div className="space-y-1">
+                {slot.knownAbilities.length > 1 && (
+                  <div className="flex flex-wrap gap-1">
+                    {slot.knownAbilities.map(ab => (
+                      <button
+                        key={ab}
+                        type="button"
+                        onClick={() => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : { ...sl, ability: ab }))}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border font-medium transition-all ${
+                          slot.ability === ab
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                        }`}
+                      >
+                        {ab}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Autocomplete
+                  mode="ability"
+                  value={slot.ability}
+                  onChange={q => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : {
+                    ...sl, ability: q, abilitySuggestions: searchAbilities(q),
+                  }))}
+                  onSelect={entry => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : {
+                    ...sl, ability: entry.name, abilitySuggestions: [],
+                  }))}
+                  suggestions={slot.abilitySuggestions}
+                  placeholder="Ability (not known)"
+                />
+              </div>
 
-              <input
-                type="text"
+              <Autocomplete
+                mode="item"
                 value={slot.item}
-                onChange={e => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : { ...sl, item: e.target.value }))}
+                onChange={q => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : {
+                  ...sl, item: q, itemSuggestions: searchItems(q),
+                }))}
+                onSelect={entry => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : {
+                  ...sl, item: entry.name, itemSuggestions: [],
+                }))}
+                suggestions={slot.itemSuggestions}
                 placeholder="Item (not known)"
-                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
               />
 
               <div className="grid grid-cols-2 gap-1">

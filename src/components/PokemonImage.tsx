@@ -16,7 +16,13 @@ const SIZES = { sm: 'w-8 h-8', md: 'w-16 h-16', lg: 'w-32 h-32' } as const
 
 export function PokemonImage({ national, slug, isForm, name, size = 'md', isMega = false, item, className = '' }: Props) {
   const primaryUrl  = isMega ? megaSpriteUrl(slug, item) : spriteUrl(national, slug, isForm)
-  const fallbackUrl = isMega ? spriteUrl(national, slug, isForm) : null
+  // For megas (isMega=true): fall back to base sprite if mega sprite missing.
+  // For form Pokémon (isForm=true, e.g. enemy megas not flagged isMega): fall back to base national artwork.
+  const fallbackUrl = isMega
+    ? spriteUrl(national, slug, isForm)
+    : (isForm && national
+        ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${national}.png`
+        : null)
 
   const [currentUrl, setCurrentUrl] = useState(primaryUrl)
   const [loaded, setLoaded]         = useState(false)
