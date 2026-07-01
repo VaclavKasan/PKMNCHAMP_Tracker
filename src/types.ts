@@ -63,6 +63,8 @@ export interface EnemySlot {
   isForm:    boolean
   movesUsed: string[]
   survived?: boolean
+  ability?:  string
+  item?:     string
 }
 
 export interface Match {

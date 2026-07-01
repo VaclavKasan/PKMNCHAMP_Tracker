@@ -11,18 +11,18 @@ import { searchPokemon, searchMoves, megaCapableSet } from '../utils/gameData'
 import { PRESET_ARCHETYPES } from '../utils/archetypes'
 import { DEFAULT_REGULATION } from '../utils/regulations'
 import type { PokemonEntry, MoveEntry, EnemySlot, MatchTeamSlot } from '../types'
-import { IconPlus, IconX, IconCheck, IconLoader, IconSkull, IconShield, IconStar, IconStarFilled } from '@tabler/icons-react'
+import { IconX, IconCheck, IconLoader, IconSkull, IconShield, IconStar, IconStarFilled } from '@tabler/icons-react'
 
 interface MyTeamSelection {
-  boxId:    string
-  slug:     string
-  name:     string
-  national: number | null
-  isForm:   boolean
+  boxId:          string
+  slug:           string
+  name:           string
+  national:       number | null
+  isForm:         boolean
   availableMoves: string[]
-  movesUsed: string[]
-  survived:  boolean
-  isMega:    boolean
+  movesUsed:      string[]
+  survived:       boolean
+  isMega:         boolean
 }
 
 interface EnemySlotForm {
@@ -33,6 +33,8 @@ interface EnemySlotForm {
   isForm:          boolean
   nameQuery:       string
   nameSuggestions: PokemonEntry[]
+  ability:         string
+  item:            string
   moveQueries:     [string, string, string, string]
   moveSuggestions: [MoveEntry[], MoveEntry[], MoveEntry[], MoveEntry[]]
   survived:        boolean
@@ -43,6 +45,7 @@ function newEnemySlot(): EnemySlotForm {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2),
     name: '', slug: '', national: null, isForm: false,
     nameQuery: '', nameSuggestions: [],
+    ability: '', item: '',
     moveQueries: ['', '', '', ''],
     moveSuggestions: [[], [], [], []],
     survived: false,
@@ -66,8 +69,10 @@ export function LogPage() {
   // ── My team ───────────────────────────────────────────────────────────────
   const [myTeam, setMyTeam] = useState<MyTeamSelection[]>([])
 
-  // ── Enemy team ────────────────────────────────────────────────────────────
-  const [enemySlots, setEnemySlots] = useState<EnemySlotForm[]>([newEnemySlot()])
+  // ── Enemy team (fixed 4 slots) ────────────────────────────────────────────
+  const [enemySlots, setEnemySlots] = useState<EnemySlotForm[]>([
+    newEnemySlot(), newEnemySlot(), newEnemySlot(), newEnemySlot(),
+  ])
 
   // ── Strategy ──────────────────────────────────────────────────────────────
   const [stratQuery, setStratQuery] = useState('')
@@ -97,7 +102,7 @@ export function LogPage() {
         boxId: poke.id, slug: poke.slug, name: poke.name,
         national: poke.national, isForm: poke.isForm,
         availableMoves: poke.moves,
-        movesUsed: [], survived: false, isMega: false,
+        movesUsed: [], survived: true, isMega: false,
       }])
     }
   }
@@ -118,21 +123,15 @@ export function LogPage() {
   function toggleMega(boxId: string) {
     setMyTeam(t => t.map(s => {
       if (s.boxId !== boxId) return s
-      // If this mon is already mega, toggle off. Otherwise only allow if no other mega.
       if (s.isMega) return { ...s, isMega: false }
-      if (megaUsedBy && megaUsedBy !== boxId) return s  // already taken
+      if (megaUsedBy && megaUsedBy !== boxId) return s
       return { ...s, isMega: true }
     }))
   }
 
   // ── Enemy team logic ──────────────────────────────────────────────────────
-  function addEnemySlot() {
-    if (enemySlots.length >= 4) return
-    setEnemySlots(s => [...s, newEnemySlot()])
-  }
-
-  function removeEnemySlot(id: string) {
-    setEnemySlots(s => s.filter(slot => slot.id !== id))
+  function clearEnemySlot(id: string) {
+    setEnemySlots(s => s.map(slot => slot.id !== id ? slot : { ...newEnemySlot(), id: slot.id }))
   }
 
   function updateEnemyName(id: string, query: string) {
@@ -198,17 +197,14 @@ export function LogPage() {
           name: s.name, national: s.national, isForm: s.isForm,
           movesUsed: s.moveQueries.filter(m => m.trim()),
           survived: s.survived,
+          ability: s.ability.trim() || 'Not known',
+          item: s.item.trim() || 'Not known',
         }))
       await addMatch({
-        matchDate,
-        matchTime,
-        regulation,
-        starred,
-        myTeam: myTeamSlots,
-        enemyTeam,
+        matchDate, matchTime, regulation, starred,
+        myTeam: myTeamSlots, enemyTeam,
         enemyStrategy: stratQuery.trim(),
-        result: result!,
-        notes,
+        result: result!, notes,
       })
       navigate('/history')
     } catch (err) {
@@ -221,6 +217,8 @@ export function LogPage() {
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
   )
+
+  const teamFull = myTeam.length === 4
 
   return (
     <div className="p-4 space-y-6">
@@ -251,100 +249,117 @@ export function LogPage() {
       {/* ── Section 1: My team ────────────────────────────── */}
       <section>
         <h2 className="text-base font-semibold text-gray-900 mb-1">My Team</h2>
-        <p className="text-xs text-gray-400 mb-3">Select up to 4 Pokémon you used</p>
+        <p className="text-xs text-gray-400 mb-3">
+          {teamFull ? 'Tap × to deselect' : `Select 4 Pokémon · ${myTeam.length}/4 chosen`}
+        </p>
 
         {box.length === 0 ? (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
             Your box is empty.{' '}
             <a href="#/box" className="underline font-medium">Add Pokémon to your box</a> first.
           </div>
-        ) : (
+        ) : teamFull ? (
+          /* ── 4 selected: 2×2 tile grid ── */
           <div className="grid grid-cols-2 gap-2">
-            {box.map(poke => {
-              const sel = myTeam.find(s => s.boxId === poke.id)
-              const isSelected = !!sel
-              const isDisabled = !isSelected && myTeam.length >= 4
-              const hasMega = megaCapableSet.has(poke.slug)
-              const isMegaActive = sel?.isMega ?? false
-              const megaBlocked = !!megaUsedBy && megaUsedBy !== poke.id
+            {myTeam.map(sel => {
+              const boxPoke  = box.find(p => p.id === sel.boxId)
+              const hasMega  = megaCapableSet.has(sel.slug) &&
+                               !!boxPoke?.item &&
+                               boxPoke.item.toLowerCase().replace(/\s/g, '').includes('ite')
+              const megaBlocked = !!megaUsedBy && megaUsedBy !== sel.boxId
 
               return (
-                <div key={poke.id} className="space-y-1">
-                  <button
-                    onClick={() => toggleMyMon(poke.id)}
-                    disabled={isDisabled}
-                    className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
-                      isSelected
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : isDisabled
-                          ? 'border-gray-200 bg-gray-50 opacity-40 cursor-not-allowed'
-                          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50'
-                    }`}
-                  >
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                        <IconCheck size={12} className="text-white" />
-                      </div>
-                    )}
-                    <PokemonImage national={poke.national} slug={poke.slug} isForm={poke.isForm} name={poke.name} size="sm" />
-                    <span className="text-sm font-medium text-gray-800 truncate flex-1">{poke.name}</span>
-                  </button>
+                <div key={sel.boxId} className="bg-white border-2 border-blue-200 rounded-xl p-2.5 space-y-2">
+                  {/* Header */}
+                  <div className="flex items-center gap-1.5">
+                    <PokemonImage national={sel.national} slug={sel.slug} isForm={sel.isForm} name={sel.name} size="sm" />
+                    <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{sel.name}</span>
+                    <button
+                      onClick={() => toggleMyMon(sel.boxId)}
+                      className="text-gray-300 hover:text-red-400 flex-shrink-0"
+                      title="Deselect"
+                    >
+                      <IconX size={13} />
+                    </button>
+                  </div>
 
-                  {/* Per-pokemon controls when selected */}
-                  {isSelected && sel && (
-                    <div className="ml-1 space-y-1.5">
-                      {/* Mega button */}
-                      {hasMega && (
-                        <button
-                          onClick={() => toggleMega(poke.id)}
-                          disabled={megaBlocked}
-                          className={`text-xs px-3 py-1 rounded-full font-semibold transition-all ${
-                            isMegaActive
-                              ? 'bg-yellow-400 text-yellow-900 shadow'
-                              : megaBlocked
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                          }`}
-                        >
-                          ⚡ Mega{isMegaActive ? ' ✓' : ''}
-                        </button>
-                      )}
-
-                      {/* Survived / Died toggle */}
+                  {/* Status row */}
+                  <div className="flex gap-1 flex-wrap">
+                    <button
+                      onClick={() => toggleSurvived(sel.boxId)}
+                      className={`flex items-center gap-0.5 text-[10px] px-2 py-0.5 rounded-full font-medium border ${
+                        sel.survived
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-red-50 text-red-700 border-red-200'
+                      }`}
+                    >
+                      {sel.survived ? <><IconShield size={9} /> Alive</> : <><IconSkull size={9} /> Fainted</>}
+                    </button>
+                    {hasMega && (
                       <button
-                        onClick={() => toggleSurvived(poke.id)}
-                        className={`flex items-center gap-1 text-xs px-3 py-1 rounded-full font-medium transition-all ${
-                          sel.survived
-                            ? 'bg-green-100 text-green-700 border border-green-300'
-                            : 'bg-red-100 text-red-700 border border-red-300'
+                        onClick={() => toggleMega(sel.boxId)}
+                        disabled={megaBlocked}
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                          sel.isMega
+                            ? 'bg-yellow-300 text-yellow-900 border-yellow-400'
+                            : megaBlocked
+                              ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                              : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
                         }`}
                       >
-                        {sel.survived
-                          ? <><IconShield size={12} /> Survived</>
-                          : <><IconSkull size={12} /> Died</>
-                        }
+                        ⚡ Mega{sel.isMega ? ' ✓' : ''}
                       </button>
+                    )}
+                  </div>
 
-                      {/* Move checklist */}
-                      {sel.availableMoves.length > 0 && (
-                        <div className="space-y-0.5">
-                          <p className="text-xs text-gray-400">Moves used:</p>
-                          {sel.availableMoves.map(move => (
-                            <label key={move} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={sel.movesUsed.includes(move)}
-                                onChange={() => toggleMoveUsed(poke.id, move)}
-                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <span className="text-xs text-gray-700">{move}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                  {/* Move checklist */}
+                  {sel.availableMoves.length > 0 && (
+                    <div className="space-y-0.5 border-t border-gray-100 pt-1.5">
+                      {sel.availableMoves.map(move => (
+                        <label key={move} className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sel.movesUsed.includes(move)}
+                            onChange={() => toggleMoveUsed(sel.boxId, move)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3 h-3"
+                          />
+                          <span className="text-[10px] text-gray-700 leading-tight">{move}</span>
+                        </label>
+                      ))}
                     </div>
                   )}
                 </div>
+              )
+            })}
+          </div>
+        ) : (
+          /* ── Selection list ── */
+          <div className="grid grid-cols-2 gap-2">
+            {box.map(poke => {
+              const isSelected = !!myTeam.find(s => s.boxId === poke.id)
+              const isDisabled = !isSelected && myTeam.length >= 4
+
+              return (
+                <button
+                  key={poke.id}
+                  onClick={() => toggleMyMon(poke.id)}
+                  disabled={isDisabled}
+                  className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                      : isDisabled
+                        ? 'border-gray-200 bg-gray-50 opacity-40 cursor-not-allowed'
+                        : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50'
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                      <IconCheck size={10} className="text-white" />
+                    </div>
+                  )}
+                  <PokemonImage national={poke.national} slug={poke.slug} isForm={poke.isForm} name={poke.name} size="sm" />
+                  <span className="text-xs font-medium text-gray-800 truncate flex-1">{poke.name}</span>
+                </button>
               )
             })}
           </div>
@@ -354,49 +369,74 @@ export function LogPage() {
       {/* ── Section 2: Enemy team ─────────────────────────── */}
       <section>
         <h2 className="text-base font-semibold text-gray-900 mb-1">Enemy Team</h2>
-        <p className="text-xs text-gray-400 mb-3">Up to 4 enemy Pokémon</p>
+        <p className="text-xs text-gray-400 mb-3">Track what you saw — leave fields blank if unknown</p>
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
           {enemySlots.map((slot, idx) => (
-            <div key={slot.id} className="bg-white border border-gray-200 rounded-xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Enemy {idx + 1}</span>
-                {enemySlots.length > 1 && (
-                  <button onClick={() => removeEnemySlot(slot.id)} className="text-gray-400 hover:text-red-500">
-                    <IconX size={16} />
+            <div key={slot.id} className="bg-white border border-gray-200 rounded-xl p-2 space-y-1.5">
+              {/* Card header */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                  Enemy {idx + 1}
+                </span>
+                {slot.name && (
+                  <button
+                    onClick={() => clearEnemySlot(slot.id)}
+                    className="text-gray-300 hover:text-red-400"
+                    title="Clear slot"
+                  >
+                    <IconX size={12} />
                   </button>
                 )}
               </div>
 
-              <div className="mb-2">
-                <Autocomplete
-                  mode="pokemon"
-                  value={slot.nameQuery}
-                  onChange={q => updateEnemyName(slot.id, q)}
-                  onSelect={entry => selectEnemyPokemon(slot.id, entry)}
-                  suggestions={slot.nameSuggestions}
-                  placeholder="Search Pokémon…"
-                />
-              </div>
+              {/* Pokemon search */}
+              <Autocomplete
+                mode="pokemon"
+                value={slot.nameQuery}
+                onChange={q => updateEnemyName(slot.id, q)}
+                onSelect={entry => selectEnemyPokemon(slot.id, entry)}
+                suggestions={slot.nameSuggestions}
+                placeholder="Pokémon…"
+              />
 
+              {/* Matched: sprite + name + survived */}
               {slot.slug && (
-                <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-1.5 py-1">
                   <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
-                  <span className="text-sm text-gray-700 flex-1">{slot.name}</span>
-                  {/* Enemy survived/died toggle */}
+                  <span className="text-[10px] font-semibold text-gray-700 flex-1 truncate">{slot.name}</span>
                   <button
                     onClick={() => toggleEnemySurvived(slot.id)}
-                    className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium transition-all ${
+                    className={`flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border ${
                       slot.survived
-                        ? 'bg-green-100 text-green-700 border border-green-300'
-                        : 'bg-red-100 text-red-700 border border-red-300'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-red-50 text-red-700 border-red-200'
                     }`}
                   >
-                    {slot.survived ? <><IconShield size={11} /> Survived</> : <><IconSkull size={11} /> Died</>}
+                    {slot.survived ? <><IconShield size={8} /> Alive</> : <><IconSkull size={8} /> Fainted</>}
                   </button>
                 </div>
               )}
 
+              {/* Ability */}
+              <input
+                type="text"
+                value={slot.ability}
+                onChange={e => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : { ...sl, ability: e.target.value }))}
+                placeholder="Ability (not known)"
+                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
+              />
+
+              {/* Item */}
+              <input
+                type="text"
+                value={slot.item}
+                onChange={e => setEnemySlots(s => s.map(sl => sl.id !== slot.id ? sl : { ...sl, item: e.target.value }))}
+                placeholder="Item (not known)"
+                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-300"
+              />
+
+              {/* Moves 2×2 */}
               <div className="grid grid-cols-2 gap-1">
                 {[0, 1, 2, 3].map(i => (
                   <Autocomplete
@@ -412,16 +452,6 @@ export function LogPage() {
               </div>
             </div>
           ))}
-
-          {enemySlots.length < 4 && (
-            <button
-              onClick={addEnemySlot}
-              className="w-full flex items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-xl py-3 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-600"
-            >
-              <IconPlus size={16} />
-              Add enemy Pokémon
-            </button>
-          )}
         </div>
 
         {/* Strategy */}
@@ -492,7 +522,6 @@ export function LogPage() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-sm text-red-700">{saveError}</div>
         )}
 
-        {/* Star toggle */}
         <button
           type="button"
           onClick={() => setStarred(s => !s)}
