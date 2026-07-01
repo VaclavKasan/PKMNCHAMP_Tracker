@@ -66,6 +66,7 @@ export interface EnemySlot {
   survived?: boolean
   ability?:  string
   item?:     string
+  kills?:    number
 }
 
 export interface Match {
@@ -78,6 +79,7 @@ export interface Match {
   enemyTeam:     EnemySlot[]
   enemyStrategy: string
   regulation?:   string
+  rank?:         string
   result:        'win' | 'loss'
   notes:         string
 }

@@ -6,7 +6,9 @@
       "Bash(python3 -c ' *)",
       "Bash(node -e \"import\\('esbuild'\\).then\\(m => console.log\\('ok', Object.keys\\(m\\).slice\\(0,3\\)\\)\\).catch\\(e => console.log\\('MISSING:', e.message\\)\\)\")",
       "Bash(git rm *)",
-      "Bash(rm -rf .git/modules/vendor/pokemondb)"
+      "Bash(rm -rf .git/modules/vendor/pokemondb)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

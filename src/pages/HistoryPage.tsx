@@ -6,6 +6,7 @@ import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
 import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled, IconEdit } from '@tabler/icons-react'
 import type { Match } from '../types'
+import { RANKS, rankBallUrl } from '../utils/regulations'
 
 type ResultFilter = 'all' | 'win' | 'loss'
 
@@ -252,6 +253,15 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                 {match.regulation}
               </span>
             )}
+            {match.rank && (() => {
+              const r = RANKS.find(x => x.id === match.rank)
+              return r ? (
+                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-700 border border-gray-200">
+                  <img src={rankBallUrl(r.ballSlug)} className="w-4 h-4 object-contain" alt="" />
+                  {r.label}
+                </span>
+              ) : null
+            })()}
             {match.enemyStrategy && <ArchetypeBadge arch={match.enemyStrategy} />}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -309,6 +319,11 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                       ? <IconShield size={8} className="text-green-600" />
                       : <IconSkull size={8} className="text-red-600" />
                     }
+                  </span>
+                )}
+                {!!slot.kills && slot.kills > 0 && (
+                  <span className="absolute -top-1 -left-1 text-[8px] bg-orange-500 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold leading-none">
+                    {slot.kills}
                   </span>
                 )}
               </div>
@@ -406,11 +421,16 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                   <div key={i} className="flex items-start gap-2">
                     <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" isMega={!!(slot as { isMega?: boolean }).isMega} />
                     <div className="flex-1">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
                         <p className="text-xs font-medium text-gray-700">{slot.name}</p>
                         {slot.survived !== undefined && (
                           <span className={`text-xs px-1 rounded flex items-center gap-0.5 ${slot.survived ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'}`}>
                             {slot.survived ? <><IconShield size={9} />Survived</> : <><IconSkull size={9} />Died</>}
+                          </span>
+                        )}
+                        {!!slot.kills && slot.kills > 0 && (
+                          <span className="text-xs text-orange-700 bg-orange-100 px-1 rounded font-semibold">
+                            ☠ {slot.kills}
                           </span>
                         )}
                       </div>

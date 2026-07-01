@@ -9,7 +9,7 @@ import { DatePicker } from '../components/DatePicker'
 import { RegulationPicker } from '../components/RegulationPicker'
 import { searchPokemon, searchMoves, megaCapableSet } from '../utils/gameData'
 import { PRESET_ARCHETYPES } from '../utils/archetypes'
-import { DEFAULT_REGULATION } from '../utils/regulations'
+import { DEFAULT_REGULATION, RANKS, DEFAULT_RANK, rankBallUrl } from '../utils/regulations'
 import type { PokemonEntry, MoveEntry, EnemySlot, MatchTeamSlot } from '../types'
 import { IconX, IconCheck, IconLoader, IconSkull, IconShield, IconStar, IconStarFilled } from '@tabler/icons-react'
 
@@ -39,6 +39,7 @@ interface EnemySlotForm {
   moveQueries:     [string, string, string, string]
   moveSuggestions: [MoveEntry[], MoveEntry[], MoveEntry[], MoveEntry[]]
   survived:        boolean
+  kills:           number
 }
 
 function newEnemySlot(): EnemySlotForm {
@@ -50,7 +51,45 @@ function newEnemySlot(): EnemySlotForm {
     moveQueries: ['', '', '', ''],
     moveSuggestions: [[], [], [], []],
     survived: false,
+    kills: 0,
   }
+}
+
+// ── Rank picker ───────────────────────────────────────────────────────────────
+function RankPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = RANKS.find(r => r.id === value) ?? RANKS.find(r => r.id === DEFAULT_RANK)!
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full flex items-center gap-1.5 border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-left hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <img src={rankBallUrl(selected.ballSlug)} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
+        <span className="flex-1 text-xs font-medium text-gray-700 truncate">{selected.label}</span>
+        <svg className="w-3 h-3 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <ul className="absolute z-50 top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+          {RANKS.map(r => (
+            <li
+              key={r.id}
+              onMouseDown={() => { onChange(r.id); setOpen(false) }}
+              className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs hover:bg-blue-50 ${r.id === value ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-700'}`}
+            >
+              <img src={rankBallUrl(r.ballSlug)} className="w-5 h-5 object-contain flex-shrink-0" alt="" />
+              {r.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 function nowTime() {
@@ -114,6 +153,12 @@ export function LogPage() {
   const [matchDate, setMatchDate] = useState(() => new Date().toISOString().split('T')[0])
   const [matchTime, setMatchTime] = useState(nowTime)
   const [regulation, setRegulation] = useState(DEFAULT_REGULATION)
+  const [rank, setRank] = useState(() => localStorage.getItem('pkmnchamp_last_rank') ?? DEFAULT_RANK)
+
+  function setRankAndPersist(r: string) {
+    localStorage.setItem('pkmnchamp_last_rank', r)
+    setRank(r)
+  }
   const [starred, setStarred] = useState(false)
 
   // ── My team ───────────────────────────────────────────────────────────────
@@ -149,6 +194,7 @@ export function LogPage() {
     setMatchDate(m.matchDate ?? m.date.split('T')[0])
     setMatchTime(m.matchTime ?? nowTime())
     setRegulation(m.regulation ?? DEFAULT_REGULATION)
+    setRank(m.rank ?? DEFAULT_RANK)
     setStarred(m.starred ?? false)
     setResult(m.result)
     setNotes(m.notes)
@@ -176,6 +222,7 @@ export function LogPage() {
         e.movesUsed[2] ?? '', e.movesUsed[3] ?? '',
       ] as [string, string, string, string],
       survived: e.survived ?? false,
+      kills: e.kills ?? 0,
     }))
     while (filledSlots.length < 4) filledSlots.push(newEnemySlot())
     setEnemySlots(filledSlots.slice(0, 4))
@@ -272,6 +319,10 @@ export function LogPage() {
     setEnemySlots(s => s.map(slot => slot.id !== id ? slot : { ...slot, survived: !slot.survived }))
   }
 
+  function setEnemyKills(id: string, kills: number) {
+    setEnemySlots(s => s.map(slot => slot.id !== id ? slot : { ...slot, kills: Math.max(0, kills) }))
+  }
+
   // ── Save ──────────────────────────────────────────────────────────────────
   const canSave = myTeam.length >= 1 && result !== null && stratQuery.trim() !== ''
 
@@ -296,9 +347,10 @@ export function LogPage() {
           survived: s.survived,
           ability: s.ability.trim() || 'Not known',
           item: s.item.trim() || 'Not known',
+          kills: s.kills,
         }))
       const payload = {
-        matchDate, matchTime, regulation, starred,
+        matchDate, matchTime, regulation, rank, starred,
         myTeam: myTeamSlots, enemyTeam,
         enemyStrategy: stratQuery.trim(),
         result: result!, notes,
@@ -342,9 +394,15 @@ export function LogPage() {
             <TimeInput value={matchTime} onChange={setMatchTime} />
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-2">Regulation</label>
-          <RegulationPicker value={regulation} onChange={setRegulation} />
+        <div className="grid grid-cols-2 gap-2 items-end">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Regulation</label>
+            <RegulationPicker value={regulation} onChange={setRegulation} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Rank</label>
+            <RankPicker value={rank} onChange={setRankAndPersist} />
+          </div>
         </div>
       </section>
 
@@ -513,20 +571,37 @@ export function LogPage() {
               />
 
               {slot.slug && (
-                <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-1.5 py-1">
-                  <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
-                  <span className="text-[10px] font-semibold text-gray-700 flex-1 truncate">{slot.name}</span>
-                  <button
-                    onClick={() => toggleEnemySurvived(slot.id)}
-                    className={`flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border ${
-                      slot.survived
-                        ? 'bg-green-50 text-green-700 border-green-200'
-                        : 'bg-red-50 text-red-700 border-red-200'
-                    }`}
-                  >
-                    {slot.survived ? <><IconShield size={8} /> Alive</> : <><IconSkull size={8} /> Fainted</>}
-                  </button>
-                </div>
+                <>
+                  <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-1.5 py-1">
+                    <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
+                    <span className="text-[10px] font-semibold text-gray-700 flex-1 truncate">{slot.name}</span>
+                    <button
+                      onClick={() => toggleEnemySurvived(slot.id)}
+                      className={`flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border ${
+                        slot.survived
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-red-50 text-red-700 border-red-200'
+                      }`}
+                    >
+                      {slot.survived ? <><IconShield size={8} /> Alive</> : <><IconSkull size={8} /> Fainted</>}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">Kills</span>
+                    <button
+                      onClick={() => setEnemyKills(slot.id, slot.kills - 1)}
+                      disabled={slot.kills === 0}
+                      className="w-5 h-5 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500 disabled:opacity-30 text-xs leading-none"
+                    >−</button>
+                    <span className={`text-xs font-bold w-4 text-center ${slot.kills > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
+                      {slot.kills}
+                    </span>
+                    <button
+                      onClick={() => setEnemyKills(slot.id, slot.kills + 1)}
+                      className="w-5 h-5 flex items-center justify-center rounded border border-gray-200 text-gray-400 hover:border-green-300 hover:text-green-600 text-xs leading-none"
+                    >+</button>
+                  </div>
+                </>
               )}
 
               <input
