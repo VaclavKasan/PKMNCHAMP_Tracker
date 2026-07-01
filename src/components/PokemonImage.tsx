@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { spriteUrl, megaSpriteUrl } from '../utils/sprites'
 
 interface Props {
@@ -21,6 +21,7 @@ export function PokemonImage({ national, slug, isForm, name, size = 'md', isMega
   const [currentUrl, setCurrentUrl] = useState(primaryUrl)
   const [loaded, setLoaded]         = useState(false)
   const [failed, setFailed]         = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
 
   // Reset when the target pokemon / mega state changes
   useEffect(() => {
@@ -28,6 +29,15 @@ export function PokemonImage({ national, slug, isForm, name, size = 'md', isMega
     setLoaded(false)
     setFailed(false)
   }, [primaryUrl])
+
+  // When the browser serves an image from its memory cache, the load event fires
+  // synchronously as soon as src is set — before React attaches the onLoad handler.
+  // Check .complete after mount to catch those already-loaded images.
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true)
+    }
+  }, [currentUrl])
 
   function handleError() {
     if (fallbackUrl && currentUrl !== fallbackUrl) {
@@ -49,10 +59,10 @@ export function PokemonImage({ national, slug, isForm, name, size = 'md', isMega
         </div>
       ) : (
         <img
+          ref={imgRef}
           key={currentUrl}
           src={currentUrl}
           alt={name}
-
           className={`object-contain ${SIZES[size]} ${loaded ? 'opacity-100' : 'opacity-0'} transition-opacity`}
           onLoad={() => setLoaded(true)}
           onError={handleError}
