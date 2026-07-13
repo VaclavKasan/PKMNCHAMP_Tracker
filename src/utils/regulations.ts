@@ -11,6 +11,23 @@ export const REGULATIONS: Regulation[] = [
 
 export const DEFAULT_REGULATION = REGULATIONS[REGULATIONS.length - 1].id
 
+// ── Seasons ───────────────────────────────────────────────────────────────────
+
+export interface Season {
+  id:    string
+  label: string
+}
+
+// Add future seasons here. The last entry becomes the new default.
+export const SEASONS: Season[] = [
+  { id: 'm1', label: 'M-1' },
+  { id: 'm2', label: 'M-2' },
+  { id: 'm3', label: 'M-3' },
+  { id: 'm4', label: 'M-4' },
+]
+
+export const DEFAULT_SEASON = SEASONS[SEASONS.length - 1].id
+
 // ── Pokémon Champions ranks ────────────────────────────────────────────────────
 export interface Rank {
   id:       string

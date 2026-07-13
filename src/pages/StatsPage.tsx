@@ -4,7 +4,7 @@ import { useWidgetConfig, WIDGET_REGISTRY } from '../hooks/useWidgetConfig'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { WinRateBar } from '../components/WinRateBar'
-import { REGULATIONS, RANKS, rankBallUrl } from '../utils/regulations'
+import { REGULATIONS, RANKS, rankBallUrl, SEASONS } from '../utils/regulations'
 import type { Match, WidgetId } from '../types'
 import {
   IconShield, IconSkull, IconTrophy, IconSword,
@@ -235,12 +235,14 @@ export function StatsPage() {
   const { matches, loading: matchesLoading } = useMatches()
   const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown } = useWidgetConfig()
   const [regulation, setRegulation] = useState<'all' | string>('all')
+  const [season, setSeason] = useState<'all' | string>('all')
   const [editMode, setEditMode] = useState(false)
 
-  const filtered = useMemo(() =>
-    regulation === 'all' ? matches : matches.filter(m => (m.regulation ?? '') === regulation),
-    [matches, regulation]
-  )
+  const filtered = useMemo(() => {
+    let ms = regulation === 'all' ? matches : matches.filter(m => (m.regulation ?? '') === regulation)
+    if (season !== 'all') ms = ms.filter(m => (m.season ?? '') === season)
+    return ms
+  }, [matches, regulation, season])
   const stats = useMemo(() => computeStats(filtered), [filtered])
 
   if (matchesLoading || configLoading) return (
@@ -263,7 +265,7 @@ export function StatsPage() {
                 : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
             }`}
           >
-            All seasons
+            All regs
           </button>
           {REGULATIONS.map(r => (
             <button
@@ -293,12 +295,39 @@ export function StatsPage() {
         </button>
       </div>
 
+      {/* Season filter */}
+      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <button
+          onClick={() => setSeason('all')}
+          className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+            season === 'all'
+              ? 'bg-purple-600 text-white border-purple-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+          }`}
+        >
+          All seasons
+        </button>
+        {SEASONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setSeason(season === s.id ? 'all' : s.id)}
+            className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+              season === s.id
+                ? 'bg-purple-600 text-white border-purple-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       {!stats ? (
         <div className="text-center py-16 px-4">
           <div className="text-5xl mb-4">📊</div>
           <p className="text-gray-500 mb-2">No match data yet</p>
           <p className="text-sm text-gray-400">
-            {regulation !== 'all' ? 'No matches for this regulation.' : 'Log some matches to see your stats.'}
+            {regulation !== 'all' || season !== 'all' ? 'No matches for the selected filters.' : 'Log some matches to see your stats.'}
           </p>
         </div>
       ) : (

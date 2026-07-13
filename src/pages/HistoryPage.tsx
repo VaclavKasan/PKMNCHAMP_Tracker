@@ -6,7 +6,7 @@ import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
 import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled, IconEdit } from '@tabler/icons-react'
 import type { Match } from '../types'
-import { RANKS, rankBallUrl } from '../utils/regulations'
+import { RANKS, rankBallUrl, SEASONS } from '../utils/regulations'
 
 type ResultFilter = 'all' | 'win' | 'loss'
 
@@ -25,16 +25,20 @@ function toDisplay(iso: string) {
 
 export function HistoryPage() {
   const navigate = useNavigate()
-  const { matches, loading, saving, deleteMatch, toggleStar } = useMatches()
+  const { matches, loading, saving, deleteMatch, toggleStar, bulkSetSeason } = useMatches()
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
   const [archFilter, setArchFilter] = useState<string | null>(null)
+  const [seasonFilter, setSeasonFilter] = useState<string | null>(null)
   const [monthFilter, setMonthFilter] = useState<string | null>(null)  // 'YYYY-MM'
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [showDateFilters, setShowDateFilters] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [massSeasonTarget, setMassSeasonTarget] = useState<string>(SEASONS[SEASONS.length - 1].id)
+  const [showMassEdit, setShowMassEdit] = useState(false)
+  const [massSaving, setMassSaving] = useState(false)
 
   // Available months derived from match data
   const availableMonths = useMemo(() => {
@@ -52,12 +56,13 @@ export function HistoryPage() {
     if (resultFilter !== 'all' && m.result !== resultFilter) return false
     if (starredOnly && !m.starred) return false
     if (archFilter && m.enemyStrategy !== archFilter) return false
+    if (seasonFilter && (m.season ?? null) !== seasonFilter) return false
     const d = matchDisplayDate(m)
     if (monthFilter && !d.startsWith(monthFilter)) return false
     if (dateFrom && d < dateFrom) return false
     if (dateTo && d > dateTo) return false
     return true
-  }), [matches, resultFilter, archFilter, monthFilter, dateFrom, dateTo])
+  }), [matches, resultFilter, archFilter, seasonFilter, monthFilter, dateFrom, dateTo])
 
   function clearDateFilters() {
     setMonthFilter(null)
@@ -66,6 +71,11 @@ export function HistoryPage() {
   }
 
   const hasDateFilter = !!monthFilter || !!dateFrom || !!dateTo
+
+  async function handleMassSeason() {
+    setMassSaving(true)
+    try { await bulkSetSeason(massSeasonTarget) } finally { setMassSaving(false); setShowMassEdit(false) }
+  }
 
   async function handleDelete(id: string) {
     await deleteMatch(id)
@@ -176,6 +186,73 @@ export function HistoryPage() {
         </div>
       )}
 
+      {/* Season filter + mass-edit */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-xs text-gray-400">Season:</span>
+        <button
+          onClick={() => setSeasonFilter(null)}
+          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+            !seasonFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+          }`}
+        >
+          All
+        </button>
+        {SEASONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setSeasonFilter(seasonFilter === s.id ? null : s.id)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+              seasonFilter === s.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowMassEdit(s => !s)}
+          className={`ml-auto text-xs px-2.5 py-1 rounded-full border transition-all ${
+            showMassEdit ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-500 hover:border-orange-300'
+          }`}
+        >
+          Set all seasons
+        </button>
+      </div>
+
+      {/* Mass-edit season panel */}
+      {showMassEdit && (
+        <div className="mb-3 bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
+          <p className="text-xs font-semibold text-orange-700">Set ALL {matches.length} matches to one season</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {SEASONS.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setMassSeasonTarget(s.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  massSeasonTarget === s.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleMassSeason}
+              disabled={massSaving}
+              className="flex items-center gap-1 text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 disabled:opacity-50"
+            >
+              {massSaving ? 'Saving…' : `Set all to ${SEASONS.find(s => s.id === massSeasonTarget)?.label}`}
+            </button>
+            <button
+              onClick={() => setShowMassEdit(false)}
+              className="text-xs text-gray-500 hover:text-gray-700 px-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Archetype chips */}
       {archetypes.length > 0 && (
         <div className="flex gap-1 mb-4 flex-wrap">
@@ -253,6 +330,14 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
                 {match.regulation}
               </span>
             )}
+            {match.season && (() => {
+              const s = SEASONS.find(x => x.id === match.season)
+              return s ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                  {s.label}
+                </span>
+              ) : null
+            })()}
             {match.rank && (() => {
               const r = RANKS.find(x => x.id === match.rank)
               return r ? (

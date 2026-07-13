@@ -79,6 +79,7 @@ export interface Match {
   enemyTeam:     EnemySlot[]
   enemyStrategy: string
   regulation?:   string
+  season?:       string
   rank?:         string
   result:        'win' | 'loss'
   notes:         string

@@ -52,8 +52,10 @@ This app uses a simplified EV system called **training points** (not standard EV
 - `src/data/megaIds.json` covers all XY/ORAS megas and all Legends Z-A megas (IDs 10278–10326). Manually maintained.
 - `PokemonImage`: cached images fire `load` synchronously before React attaches `onLoad`; a `useEffect` checks `img.complete` after mount to catch this (fixes sprites going blank after SPA navigation).
 
-### Regulations
-`src/utils/regulations.ts` is the single source of truth. Add new regulation objects to the `REGULATIONS` array; the last entry becomes the new default. Currently only Reg M-B exists.
+### Regulations and seasons
+`src/utils/regulations.ts` is the single source of truth for both. Add new regulation objects to the `REGULATIONS` array (last entry = new default). Add new seasons to the `SEASONS` array (last entry = `DEFAULT_SEASON`). Currently: Reg M-B, seasons M-1 through M-4.
+
+`Match.season` is optional — old matches may have no season set. `useMatches` exposes `bulkSetSeason(season)` to overwrite all matches at once (used by the mass-edit panel on HistoryPage). HistoryPage has a season filter row and the mass-edit panel. StatsPage has a separate season filter row (purple chips) below the regulation filter.
 
 ### Pokémon Showdown import
 `src/utils/showdownImport.ts` parses Showdown export text. Recognises both `EVs:` (÷8 conversion) and `# Champions stat points:` (direct). Capped at 20 Pokémon per import. `batchAddPokemon` in `useBox` saves the whole array in one Drive write.

@@ -9,7 +9,7 @@ import { DatePicker } from '../components/DatePicker'
 import { RegulationPicker } from '../components/RegulationPicker'
 import { searchPokemon, searchMoves, searchAbilities, searchItems, megaCapableSet, formatPokemonName, allPokemon } from '../utils/gameData'
 import { PRESET_ARCHETYPES } from '../utils/archetypes'
-import { DEFAULT_REGULATION, RANKS, DEFAULT_RANK, rankBallUrl } from '../utils/regulations'
+import { DEFAULT_REGULATION, RANKS, DEFAULT_RANK, rankBallUrl, SEASONS, DEFAULT_SEASON } from '../utils/regulations'
 import type { PokemonEntry, MoveEntry, EnemySlot, MatchTeamSlot } from '../types'
 import { IconX, IconCheck, IconLoader, IconSkull, IconShield, IconStar, IconStarFilled } from '@tabler/icons-react'
 
@@ -57,6 +57,29 @@ function newEnemySlot(): EnemySlotForm {
     survived: false,
     kills: 0,
   }
+}
+
+// ── Season picker ─────────────────────────────────────────────────────────────
+function SeasonPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const selected = SEASONS.find(s => s.id === value) ?? SEASONS[SEASONS.length - 1]
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {SEASONS.map(s => (
+        <button
+          key={s.id}
+          type="button"
+          onClick={() => onChange(s.id)}
+          className={`flex-1 min-w-0 text-xs font-medium py-1.5 px-1 rounded-lg border transition-all ${
+            s.id === selected.id
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+          }`}
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 // ── Rank picker ───────────────────────────────────────────────────────────────
@@ -157,6 +180,7 @@ export function LogPage() {
   const [matchDate, setMatchDate] = useState(() => new Date().toISOString().split('T')[0])
   const [matchTime, setMatchTime] = useState(nowTime)
   const [regulation, setRegulation] = useState(DEFAULT_REGULATION)
+  const [season, setSeason] = useState(DEFAULT_SEASON)
   const [rank, setRank] = useState(() => localStorage.getItem('pkmnchamp_last_rank') ?? DEFAULT_RANK)
 
   function setRankAndPersist(r: string) {
@@ -193,6 +217,7 @@ export function LogPage() {
     setMatchDate(new Date().toISOString().split('T')[0])
     setMatchTime(nowTime())
     setRegulation(DEFAULT_REGULATION)
+    setSeason(DEFAULT_SEASON)
     setStarred(false)
     setMyTeam([])
     setEnemySlots([newEnemySlot(), newEnemySlot(), newEnemySlot(), newEnemySlot()])
@@ -213,6 +238,7 @@ export function LogPage() {
     setMatchDate(m.matchDate ?? m.date.split('T')[0])
     setMatchTime(m.matchTime ?? nowTime())
     setRegulation(m.regulation ?? DEFAULT_REGULATION)
+    setSeason(m.season ?? DEFAULT_SEASON)
     setRank(m.rank ?? DEFAULT_RANK)
     setStarred(m.starred ?? false)
     setResult(m.result)
@@ -375,7 +401,7 @@ export function LogPage() {
           kills: s.kills,
         }))
       const payload = {
-        matchDate, matchTime, regulation, rank, starred,
+        matchDate, matchTime, regulation, season, rank, starred,
         myTeam: myTeamSlots, enemyTeam,
         enemyStrategy: stratQuery.trim(),
         result: result!, notes,
@@ -428,10 +454,14 @@ export function LogPage() {
             <TimeInput value={matchTime} onChange={setMatchTime} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 items-end">
+        <div className="grid grid-cols-3 gap-2 items-start">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-2">Regulation</label>
             <RegulationPicker value={regulation} onChange={setRegulation} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Season</label>
+            <SeasonPicker value={season} onChange={setSeason} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Rank</label>

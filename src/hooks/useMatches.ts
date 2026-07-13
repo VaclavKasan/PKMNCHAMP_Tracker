@@ -27,5 +27,9 @@ export function useMatches() {
     await save(matches.map(m => m.id === id ? { ...m, ...updates } : m))
   }, [matches, save])
 
-  return { matches: sorted, loading, saving, error, addMatch, updateMatch, deleteMatch, toggleStar }
+  const bulkSetSeason = useCallback(async (season: string) => {
+    await save(matches.map(m => ({ ...m, season })))
+  }, [matches, save])
+
+  return { matches: sorted, loading, saving, error, addMatch, updateMatch, deleteMatch, toggleStar, bulkSetSeason }
 }
