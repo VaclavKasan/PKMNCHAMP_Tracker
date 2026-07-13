@@ -375,7 +375,7 @@ export function LogPage() {
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
-  const canSave = myTeam.length >= 1 && result !== null && stratQuery.trim() !== ''
+  const canSave = myTeam.length >= 1 && result !== null
 
   async function handleSave() {
     if (!canSave) return
@@ -403,7 +403,7 @@ export function LogPage() {
       const payload = {
         matchDate, matchTime, regulation, season, rank, starred,
         myTeam: myTeamSlots, enemyTeam,
-        enemyStrategy: stratQuery.trim(),
+        enemyStrategy: stratQuery.trim() || 'No clear strategy',
         result: result!, notes,
       }
       if (isEdit) {
@@ -822,7 +822,7 @@ export function LogPage() {
 
         {!canSave && (
           <p className="text-xs text-gray-400 mb-2">
-            Select ≥1 Pokémon, set result, and enter enemy strategy to save.
+            Select ≥1 Pokémon and set result to save.
           </p>
         )}
 
