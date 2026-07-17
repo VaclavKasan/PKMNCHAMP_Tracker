@@ -4,7 +4,7 @@ import { useWidgetConfig, WIDGET_REGISTRY } from '../hooks/useWidgetConfig'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { WinRateBar } from '../components/WinRateBar'
-import { REGULATIONS, RANKS, rankBallUrl, SEASONS } from '../utils/regulations'
+import { REGULATIONS, RANKS, rankBallUrl, SEASONS, DEFAULT_REGULATION, DEFAULT_SEASON } from '../utils/regulations'
 import type { Match, WidgetId } from '../types'
 import {
   IconShield, IconSkull, IconTrophy, IconSword,
@@ -234,8 +234,8 @@ function renderWidget(id: WidgetId, s: ComputedStats): ReactNode {
 export function StatsPage() {
   const { matches, loading: matchesLoading } = useMatches()
   const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown } = useWidgetConfig()
-  const [regulation, setRegulation] = useState<'all' | string>('all')
-  const [season, setSeason] = useState<'all' | string>('all')
+  const [regulation, setRegulation] = useState<'all' | string>(DEFAULT_REGULATION)
+  const [season, setSeason] = useState<'all' | string>(DEFAULT_SEASON)
   const [editMode, setEditMode] = useState(false)
 
   const filtered = useMemo(() => {

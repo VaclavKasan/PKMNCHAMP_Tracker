@@ -8,6 +8,14 @@ const POKEAPI  = (n: number) =>
 const SHOWDOWN = (slug: string) =>
   `https://play.pokemonshowdown.com/sprites/dex/${slug}.png`
 
+// Showdown HOME sprites have full coverage for regional forms (alola/galar/hisui/paldea etc.)
+// Derive slug from display name: lowercase, drop apostrophes/dots, drop spaces (keep hyphens)
+// "Ninetales-Alola" → "ninetales-alola", "Mr. Mime-Galar" → "mrmime-galar"
+const SHOWDOWN_HOME = (name: string) => {
+  const slug = name.toLowerCase().replace(/['.]/g, '').replace(/ /g, '')
+  return `https://play.pokemonshowdown.com/sprites/home/${slug}.png`
+}
+
 // Detect Showdown mega slugs and return PokéAPI official-artwork URL.
 // Handles -x/-y (dual-form XY/ORAS), -z (ZA variants), and plain megas.
 function megaSlugUrl(slug: string): string | null {
@@ -21,9 +29,13 @@ function megaSlugUrl(slug: string): string | null {
   return id ? POKEAPI(id) : null
 }
 
-export function spriteUrl(national: number | null | undefined, slug: string, isForm: boolean): string {
+export function spriteUrl(national: number | null | undefined, slug: string, isForm: boolean, name = ''): string {
   if (!isForm && national) return POKEAPI(national)
-  return megaSlugUrl(slug) ?? SHOWDOWN(slug)
+  const megaUrl = megaSlugUrl(slug)
+  if (megaUrl) return megaUrl
+  // For non-mega form Pokémon (regional variants), use Showdown HOME sprites which have full coverage
+  if (name) return SHOWDOWN_HOME(name)
+  return SHOWDOWN(slug)
 }
 
 export function megaSpriteUrl(slug: string, item?: string): string {

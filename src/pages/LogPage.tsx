@@ -4,6 +4,7 @@ import { useBox } from '../hooks/useBox'
 import { useMatches } from '../hooks/useMatches'
 import { Autocomplete } from '../components/Autocomplete'
 import { PokemonImage } from '../components/PokemonImage'
+import { TypeBadge } from '../components/TypeBadge'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
 import { RegulationPicker } from '../components/RegulationPicker'
@@ -491,13 +492,18 @@ export function LogPage() {
                                !!boxPoke?.item &&
                                boxPoke.item.toLowerCase().replace(/\s/g, '').includes('ite')
               const megaBlocked = !!megaUsedBy && megaUsedBy !== sel.boxId
+              const types = boxPoke?.types ?? allPokemon.find(p => p.slug === sel.slug)?.types
 
               return (
                 <div key={sel.boxId} className="bg-white border-2 border-blue-200 rounded-xl p-2.5 space-y-2">
                   {/* Header */}
                   <div className="flex items-center gap-1.5">
                     <PokemonImage national={sel.national} slug={sel.slug} isForm={sel.isForm} name={sel.name} size="sm" isMega={sel.isMega} item={boxPoke?.item} />
-                    <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{sel.name}</span>
+                    <span className="text-xs font-semibold text-gray-800 truncate min-w-0">{sel.name}</span>
+                    <div className="flex gap-1 flex-shrink-0">
+                      {types?.map(t => <TypeBadge key={t} type={t} />)}
+                    </div>
+                    <div className="flex-1" />
                     <button
                       onClick={() => toggleMyMon(sel.boxId)}
                       className="text-gray-300 hover:text-red-400 flex-shrink-0"
@@ -638,7 +644,11 @@ export function LogPage() {
                 <>
                   <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-1.5 py-1">
                     <PokemonImage national={slot.national} slug={slot.slug} isForm={slot.isForm} name={slot.name} size="sm" />
-                    <span className="text-[10px] font-semibold text-gray-700 flex-1 truncate">{slot.name}</span>
+                    <span className="text-[10px] font-semibold text-gray-700 truncate min-w-0">{slot.name}</span>
+                    <div className="flex gap-1 flex-shrink-0">
+                      {allPokemon.find(p => p.slug === slot.slug)?.types?.map(t => <TypeBadge key={t} type={t} />)}
+                    </div>
+                    <div className="flex-1" />
                     <button
                       onClick={() => toggleEnemySurvived(slot.id)}
                       className={`flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border ${

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useBox } from '../hooks/useBox'
 import { Autocomplete } from '../components/Autocomplete'
 import { PokemonImage } from '../components/PokemonImage'
+import { TypeBadge } from '../components/TypeBadge'
 import { searchPokemon, searchMoves, searchAbilities, searchItems, allPokemon, moveTypeMap, TYPE_COLORS } from '../utils/gameData'
 import { NATURES, getNature } from '../utils/natures'
 import { calcStat, STAT_KEYS, STAT_COLORS, MAX_EV_TOTAL, MAX_EV_SINGLE } from '../utils/statCalc'
@@ -30,18 +31,6 @@ const STAT_DARK_COLORS: Record<StatKey, string> = {
   spa: '#1d4ed8',
   spd: '#6d28d9',
   spe: '#be185d',
-}
-
-// ── Type badge ────────────────────────────────────────────────────────────────
-function TypeBadge({ type }: { type: string }) {
-  return (
-    <span
-      className="inline-block text-[10px] font-bold text-white px-2 py-0.5 rounded-full"
-      style={{ backgroundColor: TYPE_COLORS[type] ?? '#888' }}
-    >
-      {type.toUpperCase()}
-    </span>
-  )
 }
 
 // ── Move type dot ─────────────────────────────────────────────────────────────
