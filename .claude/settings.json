@@ -66,7 +66,8 @@
       "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -c \"\\\\dt public.*\" -c \"select tablename, policyname, cmd from pg_policies where schemaname='public' order by tablename, policyname;\")",
       "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -c \"\\\\df public.*\" -c \"select tgname from pg_trigger where tgname = 'on_auth_user_created';\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://cgpmqsqtvgkngpukzoef.supabase.co/rest/v1/box_pokemon?select=id&limit=1\" -H \"apikey: sb_publishable_gBtD9ERb5nuE-bs4nV957Q_XHjIonLl\")",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(git remote *)"
     ]
   }
 }

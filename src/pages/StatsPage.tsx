@@ -483,7 +483,7 @@ function VsStrategiesWidget({ strategies }: { strategies: StratEntry[] }) {
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">vs. Strategies</h2>
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[232px] overflow-y-auto pr-1">
         {strategies.map(s => (
           <div key={s.strat}>
             <div className="flex items-center justify-between mb-1">
@@ -543,7 +543,7 @@ function MyPerformanceWidget({ myPokemon }: { myPokemon: MyPokeEntry[] }) {
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">My Pokémon Performance</h2>
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
         {myPokemon.map(p => (
           <div key={p.slug}>
             <div className="flex items-center gap-2 mb-1">
@@ -576,7 +576,7 @@ function PickRateWidget({ pickRate }: { pickRate: PickRateEntry[] }) {
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-1">Pick Rate</h2>
       <p className="text-xs text-gray-400 mb-3">How often each box Pokémon gets brought to a match</p>
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
         {pickRate.map(p => (
           <div key={p.slug}>
             <div className="flex items-center gap-2 mb-1">
@@ -602,7 +602,7 @@ function MySurvivedWidget({ mySurvivedMost }: { mySurvivedMost: MyPokeEntry[] })
         <IconShield size={16} className="text-green-500" /> My Team — Survived Most
       </h2>
       <p className="text-xs text-gray-400 mb-3">How many battles each of your Pokémon survived</p>
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[232px] overflow-y-auto pr-1">
         {mySurvivedMost.filter(p => p.survived > 0).map((p, i) => (
           <div key={p.slug} className="flex items-center gap-2">
             <span className="text-xs text-gray-400 w-4 text-right">{i + 1}.</span>
@@ -628,7 +628,7 @@ function EnemySurvivedWidget({ enemySurvivedMost }: { enemySurvivedMost: EnemyPo
         <IconSkull size={16} className="text-red-500" /> Enemy — Survived Most
       </h2>
       <p className="text-xs text-gray-400 mb-3">Opponents hardest to knock out</p>
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[232px] overflow-y-auto pr-1">
         {enemySurvivedMost.filter(p => p.survived > 0).map((p, i) => (
           <div key={p.slug || p.name} className="flex items-center gap-2">
             <span className="text-xs text-gray-400 w-4 text-right">{i + 1}.</span>
@@ -646,7 +646,7 @@ function EnemyFrequencyWidget({ enemyPokemon }: { enemyPokemon: EnemyPokeEntry[]
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">Enemy Pokémon Frequency</h2>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 max-h-[172px] overflow-y-auto pr-1">
         {enemyPokemon.map(p => (
           <div key={p.slug || p.name} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
             <PokemonImage national={p.national} slug={p.slug} isForm={p.isForm} name={p.name} size="sm" />
@@ -673,7 +673,7 @@ function KillLeadersWidget({ title, icon, leaders }: { title: string; icon: 'swo
         }
         {title}
       </h2>
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[232px] overflow-y-auto pr-1">
         {leaders.map((p, i) => (
           <div key={p.slug} className="flex items-center gap-2">
             <span className="text-xs text-gray-400 w-4 text-right">{i + 1}.</span>
@@ -725,7 +725,7 @@ function StatsByRankWidget({ byRank }: { byRank: { rankId: string; label: string
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">Stats by Rank</h2>
-      <div className="space-y-3">
+      <div className="space-y-3 max-h-[232px] overflow-y-auto pr-1">
         {byRank.map(r => (
           <div key={r.rankId}>
             <div className="flex items-center justify-between mb-1">
@@ -752,7 +752,7 @@ function MoveUsageWidget({ moveUsage }: { moveUsage: { name: string; count: numb
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">Move Usage</h2>
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
         {moveUsage.map(m => (
           <div key={m.name} className="flex items-center justify-between">
             <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">{m.name}</span>
@@ -768,7 +768,7 @@ function EnemyItemsWidget({ enemyItems }: { enemyItems: { name: string; count: n
   return (
     <section className="bg-white border border-gray-200 rounded-xl p-4">
       <h2 className="text-base font-semibold text-gray-900 mb-3">Enemy Items</h2>
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
         {enemyItems.map(item => (
           <div key={item.name} className="flex items-center justify-between">
             <span className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-medium">{item.name}</span>
