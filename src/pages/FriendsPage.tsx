@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useFriends } from '../hooks/useFriends'
 import { useViewing } from '../context/ViewingContext'
+import { MOCK_FRIEND_PROFILE } from '../data/mockFriendData'
 import type { FriendRequest } from '../types'
 import { IconCopy, IconCheck, IconUserPlus, IconLoader, IconArrowsLeftRight, IconArrowRight, IconArrowLeft } from '@tabler/icons-react'
 
@@ -201,6 +202,31 @@ export function FriendsPage() {
             })}
           </div>
         )}
+      </section>
+
+      {/* Test friend — local-only preview, never touches Supabase */}
+      <section className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+        <h2 className="text-base font-semibold text-purple-900 mb-1">Test friend</h2>
+        <p className="text-xs text-purple-700/70 mb-3">
+          A fake friend with randomized data, generated locally in your browser so you can preview the friend-view UI. Not saved anywhere — no real account, no Supabase writes.
+        </p>
+        <div className="bg-white/60 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+          <span className="text-sm font-medium text-gray-800 truncate">{displayName(MOCK_FRIEND_PROFILE)}</span>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button
+              onClick={() => { viewFriend(MOCK_FRIEND_PROFILE); navigate('/stats') }}
+              className="text-xs border border-purple-300 text-purple-700 px-2 py-1 rounded-md hover:bg-purple-100"
+            >
+              View Stats
+            </button>
+            <button
+              onClick={() => { viewFriend(MOCK_FRIEND_PROFILE); navigate('/history') }}
+              className="text-xs border border-purple-300 text-purple-700 px-2 py-1 rounded-md hover:bg-purple-100"
+            >
+              View History
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   )

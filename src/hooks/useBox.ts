@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../auth/AuthContext'
 import { rowToBox, boxToInsertRow, boxToUpdateRow } from '../utils/boxMapper'
+import { MOCK_FRIEND_ID, MOCK_FRIEND_BOX } from '../data/mockFriendData'
 import type { BoxPokemon } from '../types'
 
 export function useBox(options?: { userId?: string }) {
@@ -17,6 +18,7 @@ export function useBox(options?: { userId?: string }) {
   useEffect(() => {
     let cancelled = false
     if (!targetUserId) { setBox([]); setLoading(false); return }
+    if (targetUserId === MOCK_FRIEND_ID) { setBox(MOCK_FRIEND_BOX); setLoading(false); return }
     setLoading(true)
     supabase
       .from('box_pokemon')

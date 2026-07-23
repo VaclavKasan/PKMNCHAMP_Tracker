@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../auth/AuthContext'
 import { rowToMatch, matchToInsertRow, matchToUpdateRow } from '../utils/matchMapper'
+import { MOCK_FRIEND_ID, MOCK_FRIEND_MATCHES } from '../data/mockFriendData'
 import type { Match } from '../types'
 
 const byDateDesc = (a: Match, b: Match) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -19,6 +20,7 @@ export function useMatches(options?: { userId?: string }) {
   useEffect(() => {
     let cancelled = false
     if (!targetUserId) { setMatches([]); setLoading(false); return }
+    if (targetUserId === MOCK_FRIEND_ID) { setMatches(MOCK_FRIEND_MATCHES); setLoading(false); return }
     setLoading(true)
     supabase
       .from('matches')
