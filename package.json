@@ -13,6 +13,7 @@
     "generate-icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
     "@tabler/icons-react": "^3.44.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

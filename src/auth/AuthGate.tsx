@@ -19,19 +19,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="text-6xl mb-4">⚔️</div>
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Champions Tracker</h1>
         <p className="text-gray-500 text-sm mb-8">
-          Your match data is saved privately in your Google Drive. Nothing is shared.
+          Your match data is saved to your private account. Only you can see it, unless you add a friend.
         </p>
         {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
         <button
-          onClick={signIn}
+          onClick={() => signIn()}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 font-medium"
         >
           <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="" />
           Sign in with Google
         </button>
-        <p className="text-xs text-gray-400 mt-4">
-          Requests access to a private app folder in your Google Drive.
-        </p>
       </div>
     </div>
   )

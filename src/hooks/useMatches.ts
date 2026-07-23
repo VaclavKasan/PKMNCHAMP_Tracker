@@ -1,35 +1,91 @@
-import { useCallback } from 'react'
-import { useDriveFile } from '../drive/useDriveFile'
+import { useCallback, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../auth/AuthContext'
+import { rowToMatch, matchToInsertRow, matchToUpdateRow } from '../utils/matchMapper'
 import type { Match } from '../types'
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
+const byDateDesc = (a: Match, b: Match) => new Date(b.date).getTime() - new Date(a.date).getTime()
 
-export function useMatches() {
-  const { data, loading, saving, error, save } = useDriveFile<Match[]>('matches.json', [])
-  const matches = data ?? []
+export function useMatches(options?: { userId?: string }) {
+  const { user } = useAuth()
+  const targetUserId = options?.userId ?? user?.id ?? null
+  const readOnly = !!options?.userId && options.userId !== user?.id
 
-  const sorted = [...matches].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const [matches, setMatches] = useState<Match[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!targetUserId) { setMatches([]); setLoading(false); return }
+    setLoading(true)
+    supabase
+      .from('matches')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .order('played_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) { setError(error.message); setLoading(false); return }
+        setMatches((data ?? []).map(rowToMatch))
+        setLoading(false); setError(null)
+      })
+    return () => { cancelled = true }
+  }, [targetUserId])
 
   const addMatch = useCallback(async (match: Omit<Match, 'id' | 'date'>) => {
-    const entry: Match = { ...match, id: uid(), date: new Date().toISOString() }
-    await save([...matches, entry])
-  }, [matches, save])
-
-  const deleteMatch = useCallback(async (id: string) => {
-    await save(matches.filter(m => m.id !== id))
-  }, [matches, save])
-
-  const toggleStar = useCallback(async (id: string) => {
-    await save(matches.map(m => m.id === id ? { ...m, starred: !m.starred } : m))
-  }, [matches, save])
+    if (readOnly) throw new Error('Viewing a friend’s matches is read-only')
+    if (!targetUserId) throw new Error('Not authenticated')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('matches').insert(matchToInsertRow(match, targetUserId)).select().single()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setMatches(m => [rowToMatch(data), ...m].sort(byDateDesc))
+  }, [targetUserId, readOnly])
 
   const updateMatch = useCallback(async (id: string, updates: Partial<Omit<Match, 'id' | 'date'>>) => {
-    await save(matches.map(m => m.id === id ? { ...m, ...updates } : m))
-  }, [matches, save])
+    if (readOnly) throw new Error('Viewing a friend’s matches is read-only')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('matches').update(matchToUpdateRow(updates)).eq('id', id).select().single()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setMatches(m => m.map(x => x.id === id ? rowToMatch(data) : x))
+  }, [readOnly])
+
+  const deleteMatch = useCallback(async (id: string) => {
+    if (readOnly) throw new Error('Viewing a friend’s matches is read-only')
+    setSaving(true)
+    const { error } = await supabase.from('matches').delete().eq('id', id)
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setMatches(m => m.filter(x => x.id !== id))
+  }, [readOnly])
+
+  const toggleStar = useCallback(async (id: string) => {
+    if (readOnly) throw new Error('Viewing a friend’s matches is read-only')
+    setSaving(true)
+    const current = await supabase.from('matches').select('starred').eq('id', id).single()
+    if (current.error) { setSaving(false); setError(current.error.message); throw current.error }
+    const { data, error } = await supabase
+      .from('matches').update({ starred: !current.data.starred }).eq('id', id).select().single()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setMatches(m => m.map(x => x.id === id ? rowToMatch(data) : x))
+  }, [readOnly])
 
   const bulkSetSeason = useCallback(async (season: string) => {
-    await save(matches.map(m => ({ ...m, season })))
-  }, [matches, save])
+    if (readOnly) throw new Error('Viewing a friend’s matches is read-only')
+    if (!targetUserId) throw new Error('Not authenticated')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('matches').update({ season }).eq('user_id', targetUserId).select()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setMatches((data ?? []).map(rowToMatch).sort(byDateDesc))
+  }, [targetUserId, readOnly])
 
-  return { matches: sorted, loading, saving, error, addMatch, updateMatch, deleteMatch, toggleStar, bulkSetSeason }
+  return { matches, loading, saving, error, readOnly, addMatch, updateMatch, deleteMatch, toggleStar, bulkSetSeason }
 }

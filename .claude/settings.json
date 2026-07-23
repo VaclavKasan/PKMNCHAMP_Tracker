@@ -51,7 +51,22 @@
       "Bash(npm ls *)",
       "Bash(node -e \"console.log\\(require\\('vite/package.json'\\).version\\)\")",
       "Bash(pkill -f \"node_modules/.bin/vite\")",
-      "Bash(pkill -f \"npx vite\")"
+      "Bash(pkill -f \"npx vite\")",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(kill 39487 39478)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(mkdir -p \"/private/tmp/claude-501/-Users-vaclav-kasan-ext-Library-CloudStorage-OneDrive-ZENTIVA-Dokumenty-GitHub-PKMNCHAMP-Tracker/f8dd1062-17ec-444d-b0e3-68ec6faa7f63/scratchpad\")",
+      "Bash(rm -rf node_modules)",
+      "Bash(npm ci *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5174/PKMNCHAMP_Tracker/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/PKMNCHAMP_Tracker/)",
+      "Bash(psql --version)",
+      "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -v ON_ERROR_STOP=1 -f supabase/migrations/0001_init.sql)",
+      "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -v ON_ERROR_STOP=1 -c \"drop table if exists public.profiles cascade;\")",
+      "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -c \"\\\\dt public.*\" -c \"select tablename, policyname, cmd from pg_policies where schemaname='public' order by tablename, policyname;\")",
+      "Bash(PGPASSWORD='zuYD01ntakaVW5Jk' psql \"postgresql://postgres.cgpmqsqtvgkngpukzoef@aws-0-eu-west-1.pooler.supabase.com:5432/postgres\" -c \"\\\\df public.*\" -c \"select tgname from pg_trigger where tgname = 'on_auth_user_created';\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://cgpmqsqtvgkngpukzoef.supabase.co/rest/v1/box_pokemon?select=id&limit=1\" -H \"apikey: sb_publishable_gBtD9ERb5nuE-bs4nV957Q_XHjIonLl\")",
+      "Bash(gh auth *)"
     ]
   }
 }

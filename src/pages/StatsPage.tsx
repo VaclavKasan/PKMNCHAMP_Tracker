@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useMatches } from '../hooks/useMatches'
 import { useBox } from '../hooks/useBox'
 import { useWidgetConfig, WIDGET_REGISTRY } from '../hooks/useWidgetConfig'
+import { useViewing } from '../context/ViewingContext'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { WinRateBar } from '../components/WinRateBar'
@@ -10,7 +11,7 @@ import type { Match, WidgetId, BoxPokemon } from '../types'
 import {
   IconShield, IconSkull, IconTrophy, IconSword,
   IconPencil, IconCheck, IconPlus, IconX,
-  IconChevronUp, IconChevronDown,
+  IconChevronUp, IconChevronDown, IconColumns1, IconColumns2, IconEye,
 } from '@tabler/icons-react'
 
 // ── Stats computation ─────────────────────────────────────────────────────────
@@ -252,9 +253,10 @@ function renderWidget(id: WidgetId, s: ComputedStats): ReactNode {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function StatsPage() {
-  const { matches, loading: matchesLoading } = useMatches()
-  const { box, loading: boxLoading } = useBox()
-  const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown } = useWidgetConfig()
+  const { viewedUserId, viewedProfile, viewSelf } = useViewing()
+  const { matches, loading: matchesLoading } = useMatches({ userId: viewedUserId ?? undefined })
+  const { box, loading: boxLoading } = useBox({ userId: viewedUserId ?? undefined })
+  const { visibleIds, widths, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown, setWidgetWidth } = useWidgetConfig()
   const [regulation, setRegulation] = useState<'all' | string>(DEFAULT_REGULATION)
   const [season, setSeason] = useState<'all' | string>(DEFAULT_SEASON)
   const [editMode, setEditMode] = useState(false)
@@ -274,6 +276,21 @@ export function StatsPage() {
 
   return (
     <div className="p-4 space-y-4">
+
+      {viewedProfile && (
+        <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span className="flex items-center gap-1.5 text-xs text-blue-700">
+            <IconEye size={14} />
+            Viewing <strong>{viewedProfile.displayName || 'Trainer'}</strong>'s stats — read-only
+          </span>
+          <button
+            onClick={viewSelf}
+            className="text-xs font-medium text-blue-700 underline flex-shrink-0"
+          >
+            Back to my data
+          </button>
+        </div>
+      )}
 
       {/* Regulation filter + edit toggle */}
       <div className="flex items-center gap-2">
@@ -353,45 +370,61 @@ export function StatsPage() {
         </div>
       ) : (
         <>
-          {visibleIds.map((id, idx) => {
-            const content = renderWidget(id, stats)
-            if (!content) return null
-            return (
-              <div key={id} className="relative">
-                {editMode && (
-                  <>
-                    <div className="absolute -top-2 left-2 z-10 flex flex-col gap-0.5">
+          <div className="flex flex-wrap gap-4">
+            {visibleIds.map((id, idx) => {
+              const content = renderWidget(id, stats)
+              if (!content) return null
+              const width = widths[id] ?? 'full'
+              return (
+                <div key={id} className={`relative ${width === 'half' ? 'w-[calc(50%-0.5rem)]' : 'w-full'}`}>
+                  {editMode && (
+                    <>
+                      <div className="absolute -top-2 left-2 z-10 flex flex-col gap-0.5">
+                        <button
+                          onClick={() => moveWidgetUp(id)}
+                          disabled={configSaving || idx === 0}
+                          aria-label="Move widget up"
+                          className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                        >
+                          <IconChevronUp size={11} />
+                        </button>
+                        <button
+                          onClick={() => moveWidgetDown(id)}
+                          disabled={configSaving || idx === visibleIds.length - 1}
+                          aria-label="Move widget down"
+                          className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                        >
+                          <IconChevronDown size={11} />
+                        </button>
+                      </div>
                       <button
-                        onClick={() => moveWidgetUp(id)}
-                        disabled={configSaving || idx === 0}
-                        aria-label="Move widget up"
-                        className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                        onClick={() => removeWidget(id)}
+                        disabled={configSaving}
+                        aria-label="Remove widget"
+                        className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 disabled:opacity-50 shadow-sm"
                       >
-                        <IconChevronUp size={11} />
+                        <IconX size={11} />
                       </button>
                       <button
-                        onClick={() => moveWidgetDown(id)}
-                        disabled={configSaving || idx === visibleIds.length - 1}
-                        aria-label="Move widget down"
-                        className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                        onClick={() => setWidgetWidth(id, width === 'half' ? 'full' : 'half')}
+                        disabled={configSaving}
+                        aria-label={width === 'half' ? 'Set widget to full width' : 'Set widget to half width'}
+                        title={width === 'half' ? 'Half width — tap for full' : 'Full width — tap for half'}
+                        className={`absolute -bottom-2 -right-1.5 z-10 w-6 h-6 rounded-full flex items-center justify-center shadow-sm disabled:opacity-50 ${
+                          width === 'half'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-gray-600 text-white hover:bg-gray-700'
+                        }`}
                       >
-                        <IconChevronDown size={11} />
+                        {width === 'half' ? <IconColumns2 size={12} /> : <IconColumns1 size={12} />}
                       </button>
-                    </div>
-                    <button
-                      onClick={() => removeWidget(id)}
-                      disabled={configSaving}
-                      aria-label="Remove widget"
-                      className="absolute -top-1.5 -right-1.5 z-10 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 disabled:opacity-50 shadow-sm"
-                    >
-                      <IconX size={11} />
-                    </button>
-                  </>
-                )}
-                {content}
-              </div>
-            )
-          })}
+                    </>
+                  )}
+                  {content}
+                </div>
+              )
+            })}
+          </div>
 
           {editMode && (
             <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-4">

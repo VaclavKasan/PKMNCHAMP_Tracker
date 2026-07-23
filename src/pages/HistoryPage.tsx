@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMatches } from '../hooks/useMatches'
+import { useViewing } from '../context/ViewingContext'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { DatePicker } from '../components/DatePicker'
-import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled, IconEdit } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconTrash, IconCheck, IconX, IconShield, IconSkull, IconFilter, IconStar, IconStarFilled, IconEdit, IconEye } from '@tabler/icons-react'
 import type { Match } from '../types'
 import { RANKS, rankBallUrl, SEASONS } from '../utils/regulations'
 
@@ -25,7 +26,8 @@ function toDisplay(iso: string) {
 
 export function HistoryPage() {
   const navigate = useNavigate()
-  const { matches, loading, saving, deleteMatch, toggleStar, bulkSetSeason } = useMatches()
+  const { viewedUserId, viewedProfile, viewSelf } = useViewing()
+  const { matches, loading, saving, readOnly, deleteMatch, toggleStar, bulkSetSeason } = useMatches({ userId: viewedUserId ?? undefined })
   const [resultFilter, setResultFilter] = useState<ResultFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
   const [archFilter, setArchFilter] = useState<string | null>(null)
@@ -92,6 +94,18 @@ export function HistoryPage() {
   return (
     <div className="p-4">
       <h2 className="text-xl font-semibold text-gray-900 mb-3">Match History</h2>
+
+      {viewedProfile && (
+        <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-3">
+          <span className="flex items-center gap-1.5 text-xs text-blue-700">
+            <IconEye size={14} />
+            Viewing <strong>{viewedProfile.displayName || 'Trainer'}</strong>'s history — read-only
+          </span>
+          <button onClick={viewSelf} className="text-xs font-medium text-blue-700 underline flex-shrink-0">
+            Back to my data
+          </button>
+        </div>
+      )}
 
       {/* Result filter */}
       <div className="flex gap-2 mb-3 flex-wrap">
@@ -208,18 +222,20 @@ export function HistoryPage() {
             {s.label}
           </button>
         ))}
-        <button
-          onClick={() => setShowMassEdit(s => !s)}
-          className={`ml-auto text-xs px-2.5 py-1 rounded-full border transition-all ${
-            showMassEdit ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-500 hover:border-orange-300'
-          }`}
-        >
-          Set all seasons
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => setShowMassEdit(s => !s)}
+            className={`ml-auto text-xs px-2.5 py-1 rounded-full border transition-all ${
+              showMassEdit ? 'bg-orange-100 border-orange-300 text-orange-700' : 'border-gray-200 text-gray-500 hover:border-orange-300'
+            }`}
+          >
+            Set all seasons
+          </button>
+        )}
       </div>
 
       {/* Mass-edit season panel */}
-      {showMassEdit && (
+      {!readOnly && showMassEdit && (
         <div className="mb-3 bg-orange-50 border border-orange-200 rounded-xl p-3 space-y-2">
           <p className="text-xs font-semibold text-orange-700">Set ALL {matches.length} matches to one season</p>
           <div className="flex gap-1.5 flex-wrap">
@@ -291,6 +307,7 @@ export function HistoryPage() {
               onToggleStar={() => toggleStar(match.id)}
               onEdit={() => navigate(`/log/edit/${match.id}`)}
               saving={saving}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -310,9 +327,10 @@ interface MatchCardProps {
   onToggleStar: () => void
   onEdit: () => void
   saving: boolean
+  readOnly: boolean
 }
 
-function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onToggleStar, onEdit, saving }: MatchCardProps) {
+function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDeleteRequest, onDeleteConfirm, onDeleteCancel, onToggleStar, onEdit, saving, readOnly }: MatchCardProps) {
   const displayDate = toDisplay(matchDisplayDate(match))
 
   return (
@@ -353,13 +371,17 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
             <span className="text-xs text-gray-400">
               {displayDate}{match.matchTime ? ` · ${match.matchTime}` : ''}
             </span>
-            <button
-              onClick={onToggleStar}
-              className={`transition-colors ${match.starred ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'}`}
-              title={match.starred ? 'Unstar' : 'Star'}
-            >
-              {match.starred ? <IconStarFilled size={16} /> : <IconStar size={16} />}
-            </button>
+            {readOnly ? (
+              match.starred && <IconStarFilled size={16} className="text-yellow-400" />
+            ) : (
+              <button
+                onClick={onToggleStar}
+                className={`transition-colors ${match.starred ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'}`}
+                title={match.starred ? 'Unstar' : 'Star'}
+              >
+                {match.starred ? <IconStarFilled size={16} /> : <IconStar size={16} />}
+              </button>
+            )}
           </div>
         </div>
 
@@ -431,7 +453,7 @@ function MatchCard({ match, isExpanded, onToggleExpand, isDeleteConfirm, onDelet
             {isExpanded ? 'Less' : 'Details'}
           </button>
 
-          {isDeleteConfirm ? (
+          {readOnly ? null : isDeleteConfirm ? (
             <div className="flex gap-1">
               <button
                 onClick={onDeleteConfirm}

@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { IconBox, IconSword, IconChartBar, IconHistory } from '@tabler/icons-react'
+import { NavLink, Link } from 'react-router-dom'
+import { IconBox, IconSword, IconChartBar, IconHistory, IconDownload, IconUpload, IconUsers, IconLoader } from '@tabler/icons-react'
 import { useAuth } from '../auth/AuthContext'
+import { exportBackup } from '../utils/exportBackup'
+import { ImportBackupModal } from './ImportBackupModal'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>
@@ -12,6 +14,18 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+
+  async function handleExport() {
+    if (!user) return
+    setExporting(true)
+    try {
+      await exportBackup(user.id)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     function handle(e: Event) {
@@ -66,6 +80,31 @@ export function Layout({ children }: { children: ReactNode }) {
                   <p className="px-4 py-1 text-sm font-medium text-gray-900 truncate">{user.name}</p>
                   <p className="px-4 pb-2 text-xs text-gray-500 truncate">{user.email}</p>
                   <hr className="border-gray-100" />
+                  <Link
+                    to="/friends"
+                    onClick={() => setShowUserMenu(false)}
+                    className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <IconUsers size={14} />
+                    Friends
+                  </Link>
+                  <hr className="border-gray-100" />
+                  <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {exporting ? <IconLoader size={14} className="animate-spin" /> : <IconDownload size={14} />}
+                    {exporting ? 'Exporting…' : 'Export backup'}
+                  </button>
+                  <button
+                    onClick={() => { setShowImportModal(true); setShowUserMenu(false) }}
+                    className="w-full flex items-center gap-2 text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <IconUpload size={14} />
+                    Import backup…
+                  </button>
+                  <hr className="border-gray-100" />
                   <button
                     onClick={() => { signOut(); setShowUserMenu(false) }}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
@@ -110,6 +149,8 @@ export function Layout({ children }: { children: ReactNode }) {
           ))}
         </div>
       </nav>
+
+      {showImportModal && <ImportBackupModal onClose={() => setShowImportModal(false)} />}
     </div>
   )
 }

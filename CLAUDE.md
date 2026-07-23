@@ -21,22 +21,33 @@ Game data (Pokémon, moves, abilities, items, natures) lives in `vendor/pokemon-
 **Important**: If `vendor/pokemon-showdown` is missing locally, run `git submodule update --init`. The CI workflow uses sparse-checkout to pull only `data/` from that repo.
 
 ### Auth & storage
-All user data is stored in the user's private **Google Drive `appDataFolder`** (invisible to them, app-scoped). Auth uses **Google Identity Services (GIS) token client** — no OAuth redirect, no backend.
+Auth and all user data live in **Supabase** (Postgres + Supabase Auth, Google OAuth provider, PKCE flow). `src/lib/supabaseClient.ts` is the single client instance. Row Level Security enforces who can read/write what — the client code does not need its own authorization logic beyond passing the right `user_id`.
 
-- `src/auth/AuthContext.tsx` — manages GIS token client lifecycle. Caches `{ user, accessToken, tokenExpiry }` in `localStorage` under key `pkmnchamp_auth_v1` so returning users start with `loading: false` (no login flash). Background silent refresh runs on every page load.
-- `src/drive/api.ts` — raw Drive REST calls (list, read, create, update).
-- `src/drive/useDriveFile.ts` — React hook that wraps a single JSON file in Drive. On mount it lists app files, finds by name, reads it. The `save(newData)` function either creates or patches the file. This is the **only persistence layer**.
+- `src/auth/AuthContext.tsx` — thin wrapper around `supabase.auth`. Calls `getSession()` once on mount, then subscribes to `onAuthStateChange` for sign-in/out/refresh. `signIn()` calls `signInWithOAuth({ provider: 'google' })` (a real redirect, not a popup). **PKCE flow is required**, not the default implicit flow — the app uses `HashRouter`, and an implicit-flow redirect returns the session as `#access_token=...` in the URL hash, which collides with HashRouter's own use of `location.hash` for route paths. PKCE returns `?code=...` as a query param instead, which HashRouter ignores.
+- `src/hooks/useBox.ts`, `src/hooks/useMatches.ts`, `src/hooks/useWidgetConfig.ts` — each queries its own Supabase table directly (real per-row CRUD, not whole-file overwrites). Row⇄camelCase mapping lives in `src/utils/boxMapper.ts` / `src/utils/matchMapper.ts` (shared with export/import, see below). All three accept an optional `{ userId }` to view another user's data read-only (see Friends, below); `useWidgetConfig` does not, since widget layout is always the viewer's own preference.
 
-The Drive files are:
-- `box.json` — `BoxPokemon[]` (the user's Pokémon roster)
-- `matches.json` — `Match[]` (match history)
-- `widgets.json` — `WidgetConfig { visibleIds: WidgetId[] }` (stats dashboard layout)
+The tables (see `supabase/migrations/0001_init.sql`) are:
+- `box_pokemon` — one row per `BoxPokemon`
+- `matches` — one row per `Match`; `my_team`/`enemy_team` stay as `jsonb` (no child-table normalization)
+- `widget_config` — one row per user, upserted
+- `profiles` — 1:1 with `auth.users`, auto-created via trigger on signup, holds `friend_code`
+- `friends` — friend requests/relationships (see Friends, below)
 
 ### Domain hooks
-`src/hooks/useBox.ts` and `src/hooks/useMatches.ts` wrap `useDriveFile` with domain operations. All state lives in Drive; there is no local state beyond what's in these hooks and component-local UI state.
+`useBox`/`useMatches`/`useWidgetConfig` are independent files, each doing its own Supabase queries — not a shared generic abstraction, since the row shapes differ enough that one would need escape hatches. All app state lives in Supabase; there is no local state beyond what's in these hooks and component-local UI state.
+
+### Friends (view a friend's stats/history, read-only)
+`friends` rows model a directional grant: an **accepted** row always lets `requester_id` read `owner_id`'s `box_pokemon`/`matches` (that's what was requested), and *additionally* lets `owner_id` read back `requester_id`'s data only if `mutual = true` (chosen by the requester when sending — see the checkbox on the Friends page). Both directions can coexist as two independent rows if each side sends their own request. RLS on `box_pokemon`/`matches` enforces this — see the migration file for the exact policies. Code lookup (`find_user_by_friend_code` RPC) is `SECURITY DEFINER` so a stranger's code can resolve to a user id without opening the `profiles` table to broad `SELECT`.
+
+- `src/hooks/useFriends.ts` — requests (incoming/outgoing), accepted friends, send/accept/decline/cancel/unfriend (decline and cancel both just delete the row — no reason to keep a dead relationship around).
+- `src/context/ViewingContext.tsx` — tracks which friend (if any) you're currently viewing; `StatsPage`/`HistoryPage` read it and pass `{ userId }` into `useBox`/`useMatches`, and hide mutation controls when `readOnly` is true (the real enforcement is RLS; this is defense in depth).
+- `src/pages/FriendsPage.tsx` — reached via the top-bar user menu (not a bottom tab — it's an occasional, account-adjacent action).
+
+### Backup export/import
+`src/utils/exportBackup.ts` / `src/utils/importBackup.ts` read/write a `pkmnchamp-backup-<date>.json` snapshot `{ exportedAt, box, matches, widgets }`, reusing the same row mappers as the hooks. Reachable from the top-bar user menu ("Export backup" / "Import backup…"). Keep these long-term — they're a disaster-recovery path, not just a migration tool (this is in fact how the original Google Drive data was migrated in, when this app moved off Drive-based storage).
 
 ### Routing
-HashRouter (`/#/path`) with four routes: `/box`, `/log`, `/stats`, `/history`. The edit-match flow uses `/log/edit/:matchId` — `LogPage` reads `useParams` to detect edit mode and pre-fills state from the existing match via a `useEffect` with a `useRef` init-guard.
+HashRouter (`/#/path`) with routes: `/box`, `/log`, `/stats`, `/history`, `/friends`. All pages are `React.lazy()`-loaded so only the visited page's code (and the game-data it pulls in) downloads up front. The edit-match flow uses `/log/edit/:matchId` — `LogPage` reads `useParams` to detect edit mode and pre-fills state from the existing match via a `useEffect` with a `useRef` init-guard.
 
 ### Custom stat system
 This app uses a simplified EV system called **training points** (not standard EVs):
@@ -58,10 +69,10 @@ This app uses a simplified EV system called **training points** (not standard EV
 `Match.season` is optional — old matches may have no season set. `useMatches` exposes `bulkSetSeason(season)` to overwrite all matches at once (used by the mass-edit panel on HistoryPage). HistoryPage has a season filter row and the mass-edit panel. StatsPage has a separate season filter row (purple chips) below the regulation filter.
 
 ### Pokémon Showdown import
-`src/utils/showdownImport.ts` parses Showdown export text. Recognises both `EVs:` (÷8 conversion) and `# Champions stat points:` (direct). Capped at 20 Pokémon per import. `batchAddPokemon` in `useBox` saves the whole array in one Drive write.
+`src/utils/showdownImport.ts` parses Showdown export text. Recognises both `EVs:` (÷8 conversion) and `# Champions stat points:` (direct). Capped at 20 Pokémon per import. `batchAddPokemon` in `useBox` bulk-inserts the whole array in one request.
 
 ### Stats dashboard
-`src/pages/StatsPage.tsx` renders a customizable widget grid. `src/hooks/useWidgetConfig.ts` persists the visible widget list and order to `widgets.json` in Drive. The `WIDGET_REGISTRY` (13 widgets) defines available widgets; stored order is preserved (enables drag-free reordering via ▲/▼ buttons in edit mode). In edit mode a pencil/check toggle reveals per-widget remove (×) and reorder (▲▼) buttons plus an "Add Widget" panel.
+`src/pages/StatsPage.tsx` renders a customizable widget grid. `src/hooks/useWidgetConfig.ts` persists the visible widget list, order, and per-widget width (`full`/`half`) to the `widget_config` table. The `WIDGET_REGISTRY` (14 widgets) defines available widgets; stored order is preserved (enables drag-free reordering via ▲/▼ buttons in edit mode). In edit mode a pencil/check toggle reveals per-widget remove (×), reorder (▲▼), and width-toggle buttons plus an "Add Widget" panel. Widgets render in a `flex flex-wrap` container so two `half`-width widgets sit side by side.
 
 ### Log page behaviour
 - After saving a **new** match the form clears in place (ready for the next game in a series). Saving an **edit** navigates to history.
@@ -72,4 +83,4 @@ This app uses a simplified EV system called **training points** (not standard EV
 `vite-plugin-pwa` with `registerType: 'autoUpdate'` — the service worker auto-activates on new deploys. Sprites from PokéAPI, Showdown CDN, and PokémonDB are cached via Workbox `CacheFirst` runtime rules (30-day TTL) with `cacheableResponse: { statuses: [0, 200] }` to handle cross-origin responses correctly on mobile.
 
 ### Deployment
-GitHub Actions (`.github/workflows/deploy.yml`) builds and deploys to GitHub Pages. The build requires `VITE_GOOGLE_CLIENT_ID` set as a **repository secret** (not an environment secret — build jobs can't access environment secrets). Pages source must be set to "GitHub Actions" in repo settings.
+GitHub Actions (`.github/workflows/deploy.yml`) builds and deploys to GitHub Pages. The build requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set as **repository secrets** (not environment secrets — build jobs can't access environment secrets). Pages source must be set to "GitHub Actions" in repo settings. Google sign-in itself is configured entirely on Supabase's side (Authentication → Providers → Google, with a Google Cloud OAuth Client ID/Secret and the Supabase callback URL registered as an authorized redirect URI) — the app's own bundle never references a Google client ID.

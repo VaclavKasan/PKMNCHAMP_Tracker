@@ -24,7 +24,7 @@ export interface MoveEntry {
   pp:       number | null
 }
 
-// ── App data (stored in Google Drive JSON files) ──────────────────────────────
+// ── App data (stored in Supabase) ──────────────────────────────────────────────
 
 export interface StatSpread {
   hp: number; atk: number; def: number; spa: number; spd: number; spe: number
@@ -87,28 +87,38 @@ export interface Match {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export interface GoogleUser {
-  id:      string
+export interface AppUser {
+  id:      string   // Supabase auth.users.id
   name:    string
   email:   string
   picture: string
 }
 
 export interface AuthState {
-  user:         GoogleUser | null
-  accessToken:  string | null
-  tokenExpiry:  number | null   // Unix timestamp ms
-  loading:      boolean
-  error:        string | null
+  user:    AppUser | null
+  loading: boolean
+  error:   string | null
 }
 
-// ── Drive storage state ───────────────────────────────────────────────────────
+// ── Friends ───────────────────────────────────────────────────────────────────
 
-export interface DriveFileState<T> {
-  data:    T | null
-  loading: boolean
-  saving:  boolean
-  error:   string | null
+export type FriendStatus = 'pending' | 'accepted' | 'declined'
+
+export interface FriendProfile {
+  id:          string
+  displayName: string | null
+  avatarUrl:   string | null
+}
+
+export interface FriendRequest {
+  id:           string
+  requesterId:  string
+  ownerId:      string
+  status:       FriendStatus
+  mutual:       boolean
+  createdAt:    string
+  respondedAt:  string | null
+  profile:      FriendProfile   // the *other* party, from the viewer's perspective
 }
 
 // ── Widget dashboard ──────────────────────────────────────────────────────────
@@ -129,6 +139,9 @@ export type WidgetId =
   | 'move_usage'
   | 'enemy_items'
 
+export type WidgetWidth = 'full' | 'half'
+
 export interface WidgetConfig {
   visibleIds: WidgetId[]
+  widths?:    Partial<Record<WidgetId, WidgetWidth>>
 }

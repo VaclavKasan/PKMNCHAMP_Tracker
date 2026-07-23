@@ -1,30 +1,77 @@
-import { useCallback } from 'react'
-import { useDriveFile } from '../drive/useDriveFile'
+import { useCallback, useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../auth/AuthContext'
+import { rowToBox, boxToInsertRow, boxToUpdateRow } from '../utils/boxMapper'
 import type { BoxPokemon } from '../types'
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2) }
+export function useBox(options?: { userId?: string }) {
+  const { user } = useAuth()
+  const targetUserId = options?.userId ?? user?.id ?? null
+  const readOnly = !!options?.userId && options.userId !== user?.id
 
-export function useBox() {
-  const { data, loading, saving, error, save } = useDriveFile<BoxPokemon[]>('box.json', [])
-  const box = data ?? []
+  const [box, setBox]         = useState<BoxPokemon[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!targetUserId) { setBox([]); setLoading(false); return }
+    setLoading(true)
+    supabase
+      .from('box_pokemon')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .order('added_at', { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) { setError(error.message); setLoading(false); return }
+        setBox((data ?? []).map(rowToBox))
+        setLoading(false); setError(null)
+      })
+    return () => { cancelled = true }
+  }, [targetUserId])
 
   const addPokemon = useCallback(async (pokemon: Omit<BoxPokemon, 'id' | 'addedAt'>) => {
-    const entry: BoxPokemon = { ...pokemon, id: uid(), addedAt: new Date().toISOString() }
-    await save([...box, entry])
-  }, [box, save])
+    if (readOnly) throw new Error('Viewing a friend’s box is read-only')
+    if (!targetUserId) throw new Error('Not authenticated')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('box_pokemon').insert(boxToInsertRow(pokemon, targetUserId)).select().single()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setBox(b => [...b, rowToBox(data)])
+  }, [targetUserId, readOnly])
 
   const updatePokemon = useCallback(async (id: string, updates: Partial<BoxPokemon>) => {
-    await save(box.map(p => p.id === id ? { ...p, ...updates } : p))
-  }, [box, save])
+    if (readOnly) throw new Error('Viewing a friend’s box is read-only')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('box_pokemon').update(boxToUpdateRow(updates)).eq('id', id).select().single()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setBox(b => b.map(p => p.id === id ? rowToBox(data) : p))
+  }, [readOnly])
 
   const deletePokemon = useCallback(async (id: string) => {
-    await save(box.filter(p => p.id !== id))
-  }, [box, save])
+    if (readOnly) throw new Error('Viewing a friend’s box is read-only')
+    setSaving(true)
+    const { error } = await supabase.from('box_pokemon').delete().eq('id', id)
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setBox(b => b.filter(p => p.id !== id))
+  }, [readOnly])
 
   const batchAddPokemon = useCallback(async (items: Omit<BoxPokemon, 'id' | 'addedAt'>[]) => {
-    const entries: BoxPokemon[] = items.map(p => ({ ...p, id: uid(), addedAt: new Date().toISOString() }))
-    await save([...box, ...entries])
-  }, [box, save])
+    if (readOnly) throw new Error('Viewing a friend’s box is read-only')
+    if (!targetUserId) throw new Error('Not authenticated')
+    setSaving(true)
+    const { data, error } = await supabase
+      .from('box_pokemon').insert(items.map(p => boxToInsertRow(p, targetUserId))).select()
+    setSaving(false)
+    if (error) { setError(error.message); throw error }
+    setBox(b => [...b, ...(data ?? []).map(rowToBox)])
+  }, [targetUserId, readOnly])
 
-  return { box, loading, saving, error, addPokemon, updatePokemon, deletePokemon, batchAddPokemon }
+  return { box, loading, saving, error, readOnly, addPokemon, updatePokemon, deletePokemon, batchAddPokemon }
 }
