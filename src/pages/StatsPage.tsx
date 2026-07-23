@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useMatches } from '../hooks/useMatches'
+import { useBox } from '../hooks/useBox'
 import { useWidgetConfig, WIDGET_REGISTRY } from '../hooks/useWidgetConfig'
 import { PokemonImage } from '../components/PokemonImage'
 import { ArchetypeBadge } from '../components/ArchetypeBadge'
 import { WinRateBar } from '../components/WinRateBar'
 import { REGULATIONS, RANKS, rankBallUrl, SEASONS, DEFAULT_REGULATION, DEFAULT_SEASON } from '../utils/regulations'
-import type { Match, WidgetId } from '../types'
+import type { Match, WidgetId, BoxPokemon } from '../types'
 import {
   IconShield, IconSkull, IconTrophy, IconSword,
   IconPencil, IconCheck, IconPlus, IconX,
@@ -14,7 +15,7 @@ import {
 
 // ── Stats computation ─────────────────────────────────────────────────────────
 
-function computeStats(matches: Match[]) {
+function computeStats(matches: Match[], box: BoxPokemon[]) {
   if (matches.length === 0) return null
 
   const total   = matches.length
@@ -62,6 +63,22 @@ function computeStats(matches: Match[]) {
     .map(p => ({ ...p, rate: Math.round((p.wins / p.total) * 100) }))
     .sort((a, b) => b.total - a.total)
   const mySurvivedMost = [...myPokemon].sort((a, b) => b.survived - a.survived)
+
+  // Pick rate — how often each box Pokémon gets brought, including 0% for unused ones
+  const pickRateMap = new Map<string, {
+    slug: string; name: string; national: number | null; isForm: boolean; count: number
+  }>()
+  for (const p of box) {
+    pickRateMap.set(p.slug, { slug: p.slug, name: p.name, national: p.national, isForm: p.isForm, count: 0 })
+  }
+  for (const p of myPokeMap.values()) {
+    const cur = pickRateMap.get(p.slug) ?? { slug: p.slug, name: p.name, national: p.national, isForm: p.isForm, count: 0 }
+    cur.count = p.total
+    pickRateMap.set(p.slug, cur)
+  }
+  const pickRate = [...pickRateMap.values()]
+    .map(p => ({ ...p, pickRate: Math.round((p.count / total) * 100) }))
+    .sort((a, b) => b.count - a.count)
 
   // Enemy pokemon
   const enemyMap = new Map<string, {
@@ -176,7 +193,7 @@ function computeStats(matches: Match[]) {
   return {
     total, wins, losses, winRate,
     strategies, stratMostWon, stratMostLost,
-    myPokemon, mySurvivedMost,
+    myPokemon, mySurvivedMost, pickRate,
     enemyPokemon, enemySurvivedMost,
     myKillLeaders, enemyKillLeaders,
     streak, byRank, moveUsage, enemyItems,
@@ -200,6 +217,9 @@ function renderWidget(id: WidgetId, s: ComputedStats): ReactNode {
     case 'my_performance':
       if (s.myPokemon.length === 0) return null
       return <MyPerformanceWidget myPokemon={s.myPokemon} />
+    case 'pick_rate':
+      if (s.pickRate.length === 0) return null
+      return <PickRateWidget pickRate={s.pickRate} />
     case 'my_survived':
       if (!s.mySurvivedMost.some(p => p.survived > 0)) return null
       return <MySurvivedWidget mySurvivedMost={s.mySurvivedMost} />
@@ -233,6 +253,7 @@ function renderWidget(id: WidgetId, s: ComputedStats): ReactNode {
 
 export function StatsPage() {
   const { matches, loading: matchesLoading } = useMatches()
+  const { box, loading: boxLoading } = useBox()
   const { visibleIds, loading: configLoading, saving: configSaving, addWidget, removeWidget, moveWidgetUp, moveWidgetDown } = useWidgetConfig()
   const [regulation, setRegulation] = useState<'all' | string>(DEFAULT_REGULATION)
   const [season, setSeason] = useState<'all' | string>(DEFAULT_SEASON)
@@ -243,9 +264,9 @@ export function StatsPage() {
     if (season !== 'all') ms = ms.filter(m => (m.season ?? '') === season)
     return ms
   }, [matches, regulation, season])
-  const stats = useMemo(() => computeStats(filtered), [filtered])
+  const stats = useMemo(() => computeStats(filtered, box), [filtered, box])
 
-  if (matchesLoading || configLoading) return (
+  if (matchesLoading || boxLoading || configLoading) return (
     <div className="flex items-center justify-center py-20">
       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
     </div>
@@ -508,6 +529,32 @@ function MyPerformanceWidget({ myPokemon }: { myPokemon: MyPokeEntry[] }) {
               </div>
             </div>
             <WinRateBar rate={p.rate} height={4} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+interface PickRateEntry { slug: string; name: string; national: number | null; isForm: boolean; count: number; pickRate: number }
+
+function PickRateWidget({ pickRate }: { pickRate: PickRateEntry[] }) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-4">
+      <h2 className="text-base font-semibold text-gray-900 mb-1">Pick Rate</h2>
+      <p className="text-xs text-gray-400 mb-3">How often each box Pokémon gets brought to a match</p>
+      <div className="space-y-3">
+        {pickRate.map(p => (
+          <div key={p.slug}>
+            <div className="flex items-center gap-2 mb-1">
+              <PokemonImage national={p.national} slug={p.slug} isForm={p.isForm} name={p.name} size="sm" />
+              <span className="text-sm font-medium text-gray-800 flex-1">{p.name}</span>
+              <div className="text-xs text-gray-500">
+                <span className="font-semibold text-gray-700">{p.pickRate}%</span>
+                <span className="text-gray-400 ml-1">({p.count}×)</span>
+              </div>
+            </div>
+            <WinRateBar rate={p.pickRate} height={4} />
           </div>
         ))}
       </div>

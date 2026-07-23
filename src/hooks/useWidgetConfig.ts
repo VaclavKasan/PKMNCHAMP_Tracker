@@ -13,6 +13,7 @@ export const WIDGET_REGISTRY: WidgetMeta[] = [
   { id: 'vs_strategies',       label: 'vs. Strategies',          defaultVisible: true  },
   { id: 'strategy_highlights', label: 'Strategy Highlights',     defaultVisible: true  },
   { id: 'my_performance',      label: 'My Pokémon Performance',  defaultVisible: true  },
+  { id: 'pick_rate',           label: 'Pick Rate',               defaultVisible: true  },
   { id: 'my_survived',         label: 'My Team — Survived Most', defaultVisible: false },
   { id: 'enemy_survived',      label: 'Enemy — Survived Most',   defaultVisible: false },
   { id: 'enemy_frequency',     label: 'Enemy Frequency',         defaultVisible: true  },

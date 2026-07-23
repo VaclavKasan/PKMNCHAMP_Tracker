@@ -118,6 +118,7 @@ export type WidgetId =
   | 'vs_strategies'
   | 'strategy_highlights'
   | 'my_performance'
+  | 'pick_rate'
   | 'my_survived'
   | 'enemy_survived'
   | 'enemy_frequency'
